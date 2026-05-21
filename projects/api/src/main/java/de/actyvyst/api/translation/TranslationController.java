@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 public class TranslationController {
 
     private final TranslationRepository translationRepository;
+    private final TranslationService translationService;
 
     @GetMapping("/{lng}/{ns}")
     public Map<String, String> getTranslations(@PathVariable String lng, @PathVariable String ns) {
@@ -34,9 +35,12 @@ public class TranslationController {
     public ResponseEntity<Void> reportMissingKeys(
             @PathVariable String lng,
             @PathVariable String ns,
-            @RequestBody(required = false) Object body
+            @RequestBody(required = false) Map<String, String> body
     ) {
         log.info("Missing-key report: lng={}, ns={}, body={}", lng, ns, body);
+        if (body != null && !body.isEmpty()) {
+            translationService.recordMissingKeys(lng, body);
+        }
         return ResponseEntity.ok().build();
     }
 }

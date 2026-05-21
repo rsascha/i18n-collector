@@ -2,5 +2,6 @@ package de.actyvyst.api.translation;
 
 public enum TranslationSource {
     MANUAL,
-    AI
+    AI,
+    PENDING
 }

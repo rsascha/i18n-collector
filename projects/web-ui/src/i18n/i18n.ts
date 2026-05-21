@@ -9,6 +9,7 @@ if (!i18n.isInitialized) {
     .use(HttpApi)
     .use(initReactI18next)
     .init({
+      debug: true,
       fallbackLng: "en",
       supportedLngs: ["en", "de"],
       ns: ["common"],
@@ -23,6 +24,8 @@ if (!i18n.isInitialized) {
       },
       react: {
         useSuspense: false,
+        bindI18n: "languageChanged loaded",
+        bindI18nStore: "added",
       },
     });
 }
