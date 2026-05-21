@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: i18n-translations-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-translations}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-translations}
+      POSTGRES_DB: ${DB_NAME:-translations}
+    volumes:
+      - translations_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-translations} -d ${DB_NAME:-translations}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  translations_data:

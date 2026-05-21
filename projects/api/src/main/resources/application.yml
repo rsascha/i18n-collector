@@ -1,0 +1,38 @@
+# Variablen werden aus der Umgebung gelesen. Für lokale Entwicklung:
+# Kopiere .env.example zu .env und source es vor dem App-Start
+# (z. B. `set -a && source .env && set +a && ./mvnw spring-boot:run`)
+# oder hinterlege die Variablen im IDE-Run-Config.
+
+spring:
+  application:
+    name: api
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:translations}
+    username: ${DB_USERNAME:translations}
+    password: ${DB_PASSWORD:translations}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  ai:
+    bedrock:
+      aws:
+        region: ${AWS_REGION:eu-central-1}
+      converse:
+        chat:
+          options:
+            model: ${BEDROCK_MODEL_ID:anthropic.claude-3-5-sonnet-20241022-v2:0}
+
+logging:
+  level:
+    de.actyvyst.api: DEBUG
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
