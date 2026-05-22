@@ -14,7 +14,7 @@ function subscribe(callback: () => void) {
   };
 }
 
-const getSnapshot = () => i18n.resolvedLanguage;
+const getSnapshot = () => i18n.language;
 const getServerSnapshot = () => undefined;
 
 export default function Home() {
@@ -31,7 +31,6 @@ export default function Home() {
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex flex-1 w-full max-w-3xl flex-col items-center py-32 px-16 bg-white dark:bg-black sm:items-start">
         <div className="mb-6 flex gap-2">
-          <p>active: {active}</p>
           {(["en", "de"] as const).map((lng) => (
             <button
               key={lng}

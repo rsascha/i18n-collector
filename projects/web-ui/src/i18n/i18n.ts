@@ -9,7 +9,6 @@ if (!i18n.isInitialized) {
     .use(HttpApi)
     .use(initReactI18next)
     .init({
-      debug: true,
       fallbackLng: "en",
       supportedLngs: ["en", "de"],
       ns: ["common"],
@@ -24,10 +23,13 @@ if (!i18n.isInitialized) {
       },
       react: {
         useSuspense: false,
-        bindI18n: "languageChanged loaded",
-        bindI18nStore: "added",
       },
     });
+}
+
+// Dev-only bridge for e2e/diagnose-i18n-events.spec.ts.
+if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
+  (window as unknown as { __i18n?: typeof i18n }).__i18n = i18n;
 }
 
 export default i18n;
