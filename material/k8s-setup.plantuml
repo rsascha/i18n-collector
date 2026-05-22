@@ -38,10 +38,10 @@ skinparam rectangle {
   BorderColor<<colima>>           #D97706
   BackgroundColor<<kubesys>>      #E0E7FF
   BorderColor<<kubesys>>          #4F46E5
-  BackgroundColor<<public>>       #DBEAFE
-  BorderColor<<public>>           #2563EB
-  BackgroundColor<<dev>>          #FCE7F3
-  BorderColor<<dev>>              #DB2777
+  BackgroundColor<<prod>>         #DBEAFE
+  BorderColor<<prod>>             #2563EB
+  BackgroundColor<<preprod>>      #FCE7F3
+  BorderColor<<preprod>>          #DB2777
   BackgroundColor<<pod>>          #FFFFFF
   BorderColor<<pod>>              #6B7280
   BackgroundColor<<bedrock>>      #DCFCE7
@@ -62,67 +62,67 @@ rectangle "Colima VM (k3s)" <<colima>> as colima {
     rectangle "Traefik Ingress\n(LoadBalancer :80)" <<pod>> as traefik
     note bottom of traefik
       Routet nach Host-Header:
-      web-ui.public.localtest.me  → public/web-ui
-      web-ui.dev.localtest.me     → dev/web-ui
-      admin.dev.localtest.me      → dev/web-ui-i18n
-      api.dev.localtest.me/swagger-ui
-                                  → dev/api
+      web-ui.prod.localtest.me      → prod/web-ui
+      web-ui.pre-prod.localtest.me  → pre-prod/web-ui
+      admin.pre-prod.localtest.me   → pre-prod/web-ui-i18n
+      api.pre-prod.localtest.me/swagger-ui
+                                    → pre-prod/api
     end note
   }
 
-  rectangle "Namespace: public" <<public>> as nsPub {
-    rectangle "Ingress\n(nur web-ui)" <<pod>> as ingPub
-    rectangle "web-ui :3000" <<pod>> as webPub
-    rectangle "api :8080" <<pod>> as apiPub
-    database "postgres :5432\n(PVC 1Gi)" <<pod>> as pgPub
+  rectangle "Namespace: prod" <<prod>> as nsProd {
+    rectangle "Ingress\n(nur web-ui)" <<pod>> as ingProd
+    rectangle "web-ui :3000" <<pod>> as webProd
+    rectangle "api :8080" <<pod>> as apiProd
+    database "postgres :5432\n(PVC 1Gi)" <<pod>> as pgProd
   }
 
-  rectangle "Namespace: dev" <<dev>> as nsDev {
-    rectangle "Ingress\n(web-ui + admin + api/swagger)" <<pod>> as ingDev
-    rectangle "web-ui :3000" <<pod>> as webDev
-    rectangle "web-ui-i18n :3001" <<pod>> as adminDev
-    rectangle "api :8080" <<pod>> as apiDev
-    database "postgres :5432\n(PVC 1Gi)" <<pod>> as pgDev
+  rectangle "Namespace: pre-prod" <<preprod>> as nsPre {
+    rectangle "Ingress\n(web-ui + admin + api/swagger)" <<pod>> as ingPre
+    rectangle "web-ui :3000" <<pod>> as webPre
+    rectangle "web-ui-i18n :3001" <<pod>> as adminPre
+    rectangle "api :8080" <<pod>> as apiPre
+    database "postgres :5432\n(PVC 1Gi)" <<pod>> as pgPre
   }
 }
 
 cloud "AWS Bedrock\neu-central-1\nClaude Haiku 4.5" <<bedrock>> as bedrock
 
 user --> browser
-browser --> hostPort : http://web-ui.public.localtest.me\nhttp://*.dev.localtest.me
+browser --> hostPort : http://web-ui.prod.localtest.me\nhttp://*.pre-prod.localtest.me
 hostPort --> traefik : VM-Port-Forward
 
-traefik --> ingPub  : Host-Match public.*
-traefik --> ingDev  : Host-Match *.dev.*
+traefik --> ingProd  : Host-Match *.prod.*
+traefik --> ingPre   : Host-Match *.pre-prod.*
 
-ingPub --> webPub
-ingDev --> webDev
-ingDev --> adminDev
-ingDev --> apiDev   : /swagger-ui\n/v3/api-docs
+ingProd --> webProd
+ingPre  --> webPre
+ingPre  --> adminPre
+ingPre  --> apiPre   : /swagger-ui\n/v3/api-docs
 
-webPub      --> apiPub  : SSR/Proxy\nAPI_BASE_URL=\nhttp://api:8080
-webDev      --> apiDev
-adminDev    --> apiDev
+webProd     --> apiProd  : SSR/Proxy\nAPI_BASE_URL=\nhttp://api:8080
+webPre      --> apiPre
+adminPre    --> apiPre
 
-apiPub --> pgPub : JDBC
-apiDev --> pgDev : JDBC
+apiProd --> pgProd : JDBC
+apiPre  --> pgPre  : JDBC
 
-apiDev --> bedrock : Spring AI\nConverse\n(nur dev — Auto-Translate\nsitzt in web-ui-i18n)
+apiPre --> bedrock : Spring AI\nConverse\n(nur pre-prod —\nAuto-Translate sitzt\nin web-ui-i18n)
 
-apiDev ..> apiPub : Promote-Flow\nPOST /i18n/translations/import\n(UPSERT, nur AI+MANUAL)\ncluster-intern
+apiPre ..> apiProd : Promote-Flow\nPOST /i18n/translations/import\n(UPSERT, nur AI+MANUAL)\ncluster-intern
 
-note right of nsPub
+note right of nsProd
   Konsumenten-Sicht.
   Schlanker Stack: kein
   Admin-UI deployed.
 end note
 
-note right of nsDev
-  Admin-Sicht.
+note right of nsPre
+  Werkbank.
   Eigener kompletter Stack.
   Promote-Button schiebt
   AI+MANUAL-Zeilen
-  cross-namespace nach public.
+  cross-namespace nach prod.
 end note
 
 @enduml

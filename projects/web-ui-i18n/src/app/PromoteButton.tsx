@@ -15,7 +15,7 @@ export default function PromoteButton({ approvedCount }: { approvedCount: number
 
   async function handleClick() {
     const confirmed = window.confirm(
-      `${approvedCount} approved Zeile(n) (AI + MANUAL) nach public promoten?`,
+      `${approvedCount} approved Zeile(n) (AI + MANUAL) nach prod promoten?`,
     );
     if (!confirmed) return;
 
@@ -49,11 +49,11 @@ export default function PromoteButton({ approvedCount }: { approvedCount: number
         disabled={busy || approvedCount === 0}
         className="rounded border border-zinc-900 bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white dark:bg-white dark:text-black dark:hover:bg-zinc-200"
       >
-        {busy ? "Promoting…" : `Promote dev → public (${approvedCount})`}
+        {busy ? "Promoting…" : `Promote pre-prod → prod (${approvedCount})`}
       </button>
       {result?.kind === "ok" && (
         <span className="text-xs text-green-700 dark:text-green-400">
-          {result.count} Zeile{result.count === 1 ? "" : "n"} promoted ✓
+          {result.count} Zeile{result.count === 1 ? "" : "n"} nach prod promoted ✓
         </span>
       )}
       {result?.kind === "err" && (

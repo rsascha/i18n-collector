@@ -141,7 +141,7 @@ make clean            # mvn clean + .next/tsbuildinfo-Cleanup
 
 ## Kubernetes (lokal in Colima)
 
-Alternativer Deployment-Pfad neben `make dev`: zwei Namespaces (`public` und `dev`) mit jeweils komplettem Stack. Siehe `features/2026-05-22-kubernetes-deployment.md`.
+Alternativer Deployment-Pfad neben `make dev`: zwei Namespaces (`prod` und `pre-prod`) mit jeweils eigenem Stack. `prod` ist die schlanke Konsumenten-Umgebung, `pre-prod` ist die Werkbank mit Admin-UI + Bedrock. Siehe `features/2026-05-22-kubernetes-deployment.md`.
 
 ![K8s-Setup-Diagramm](material/k8s-setup.png)
 
@@ -182,10 +182,10 @@ Funktioniert in jedem Netz (auch Café/Hotspot/VPN), unabhängig vom Router:
 sudo tee -a /etc/hosts <<'EOF'
 
 # i18n-collector — Colima/K8s-Ingress
-127.0.0.1 web-ui.public.localtest.me
-127.0.0.1 web-ui.dev.localtest.me
-127.0.0.1 admin.dev.localtest.me
-127.0.0.1 api.dev.localtest.me
+127.0.0.1 web-ui.prod.localtest.me
+127.0.0.1 web-ui.pre-prod.localtest.me
+127.0.0.1 admin.pre-prod.localtest.me
+127.0.0.1 api.pre-prod.localtest.me
 EOF
 ```
 
@@ -218,31 +218,31 @@ Vorteil B vs. A: gilt für alle Geräte im Heimnetz, ein-für-allemal. Nachteil:
 # 1. Container-Images in den Colima-Daemon laden
 make images
 
-# 2. Bedrock-Credentials nur in den `dev`-Namespace als Secret.
-#    `public` braucht Bedrock nicht (kein Admin-UI, keine Auto-Translate-Calls).
+# 2. Bedrock-Credentials nur in den `pre-prod`-Namespace als Secret.
+#    `prod` braucht Bedrock nicht (kein Admin-UI, keine Auto-Translate-Calls).
 #    Voraussetzung: aws-CLI ist eingeloggt (sonst `aws sso login` vorab).
 #    Re-Run nach Token-Ablauf reicht — Pod muss aber neu gestartet werden
 #    (siehe Troubleshooting unten).
 make k8s-secrets
 
 # 3. Stack pro Namespace deployen
-make k8s-public
-make k8s-dev
+make k8s-prod
+make k8s-pre-prod
 
 # 4. Reset (löscht beide Namespaces inkl. PVCs; Traefik bleibt)
 make k8s-clean
 ```
 
-### Promote dev → public
+### Promote pre-prod → prod
 
-Übersetzungen werden in `dev` gepflegt (Demo-Seite triggert Missing-Keys, Admin-UI lässt Bedrock-Auto-Translate laufen). `public` braucht die fertigen Werte für seine Konsumenten — die Brücke ist der **Promote-Button** in der Admin-UI (`admin.dev.localtest.me`):
+Übersetzungen werden in `pre-prod` gepflegt (Demo-Seite triggert Missing-Keys, Admin-UI lässt Bedrock-Auto-Translate laufen). `prod` braucht die fertigen Werte für seine Konsumenten — die Brücke ist der **Promote-Button** in der Admin-UI (`admin.pre-prod.localtest.me`):
 
-1. Toolbar oberhalb der Tabelle zeigt `Promote dev → public (N)` mit Counter der approved Zeilen (`AI` + `MANUAL`).
-2. Klick → Confirm-Dialog → `POST /api/i18n/promote` → dev/api orchestriert den Push an `http://api.public.svc.cluster.local:8080/i18n/translations/import` (cluster-intern, kein Ingress).
-3. UPSERT in public-DB: `ON CONFLICT (message_key, locale) DO UPDATE`. `PENDING`-Zeilen in `dev` werden bewusst nicht promoted — nur „fertige" Übersetzungen.
+1. Toolbar oberhalb der Tabelle zeigt `Promote pre-prod → prod (N)` mit Counter der approved Zeilen (`AI` + `MANUAL`).
+2. Klick → Confirm-Dialog → `POST /api/i18n/promote` → pre-prod/api orchestriert den Push an `http://api.prod.svc.cluster.local:8080/i18n/translations/import` (cluster-intern, kein Ingress).
+3. UPSERT in prod-DB: `ON CONFLICT (message_key, locale) DO UPDATE`. `PENDING`-Zeilen in `pre-prod` werden bewusst nicht promoted — nur „fertige" Übersetzungen.
 4. Inline-Banner unter dem Button zeigt Erfolgs-Counter oder Fehler.
 
-Idempotent: Mehrfaches Klicken ist sicher, ein erneuter Promote überschreibt mit denselben Werten. Voraussetzung: `PUBLIC_API_BASE_URL`-Env-Var auf dem dev/api-Deployment (im `k8s/overlays/dev/kustomization.yaml` als Patch verankert).
+Idempotent: Mehrfaches Klicken ist sicher, ein erneuter Promote überschreibt mit denselben Werten. Voraussetzung: `PUBLIC_API_BASE_URL`-Env-Var auf dem pre-prod/api-Deployment (im `k8s/overlays/pre-prod/kustomization.yaml` als Patch verankert; Variablen-Name ist historisch — er bedeutet „Promote-Ziel", nicht „public-Namespace").
 
 ### URLs
 
@@ -250,9 +250,9 @@ URLs (Traefik-Ingress, `*.localtest.me` → 127.0.0.1):
 
 | Namespace | URL                                                               |
 | --------- |-------------------------------------------------------------------|
-| `public`  | http://web-ui.public.localtest.me                                 |
-| `dev`     | http://web-ui.dev.localtest.me, http://admin.dev.localtest.me     |
-| `dev`     | http://api.dev.localtest.me/swagger-ui (nur Doku-Pfade exponiert) |
+| `prod`     | http://web-ui.prod.localtest.me                                            |
+| `pre-prod` | http://web-ui.pre-prod.localtest.me, http://admin.pre-prod.localtest.me    |
+| `pre-prod` | http://api.pre-prod.localtest.me/swagger-ui (nur Doku-Pfade exponiert)     |
 
 ## Troubleshooting
 
@@ -278,4 +278,4 @@ URLs (Traefik-Ingress, `*.localtest.me` → 127.0.0.1):
   make k8s-secrets
   kubectl rollout restart deploy/api -n dev
   ```
-  Nur `dev` braucht das — `public` hat kein bedrock-secret (kein Admin-UI, keine Bedrock-Calls).
+  Nur `pre-prod` braucht das — `prod` hat kein bedrock-secret (kein Admin-UI, keine Bedrock-Calls).

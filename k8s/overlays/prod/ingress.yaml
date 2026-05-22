@@ -1,14 +1,14 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: public-ingress
+  name: prod-ingress
 spec:
   ingressClassName: traefik
   rules:
     # Konsumenten-Sicht: nur die Demo-Seite ist von außen erreichbar.
-    # admin (web-ui-i18n) und swagger laufen zwar im Pod, sind aber nicht
-    # im Ingress eingetragen und damit cluster-intern only.
-    - host: web-ui.public.localtest.me
+    # admin (web-ui-i18n) ist in `prod` gar nicht deployed — keine Admin-UI in
+    # der Konsumenten-Umgebung. Swagger ebenfalls nicht im Ingress.
+    - host: web-ui.prod.localtest.me
       http:
         paths:
           - path: /

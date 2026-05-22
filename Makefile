@@ -1,6 +1,6 @@
 .PHONY: install dev dev-api dev-web dev-web-i18n build build-api build-web build-web-i18n lint test-e2e clean \
         images image-api image-web image-web-i18n \
-        ingress k8s-secrets k8s-public k8s-dev k8s-clean
+        ingress k8s-secrets k8s-prod k8s-pre-prod k8s-clean
 
 install:
 	pnpm install
@@ -71,17 +71,17 @@ ingress:
 	  --set ports.web.port=80 \
 	  --set ports.web.exposedPort=80
 
-# Lädt das bedrock-secret in den `dev`-Namespace. AWS-Credentials werden
+# Lädt das bedrock-secret in den `pre-prod`-Namespace. AWS-Credentials werden
 # live vom aws-CLI gezogen (`configure export-credentials`) — funktioniert
 # sowohl mit SSO als auch mit statischen Keys. Weitere Werte (AWS_REGION,
 # BEDROCK_MODEL_ID) kommen aus projects/api/.env, falls vorhanden.
 #
-# `public` bekommt das Secret bewusst nicht: Auto-Translate sitzt in
-# web-ui-i18n und ist nur in `dev` deployed. Der `public`-API-Pod startet
+# `prod` bekommt das Secret bewusst nicht: Auto-Translate sitzt in
+# web-ui-i18n und ist nur in `pre-prod` deployed. Der `prod`-API-Pod startet
 # auch ohne Creds (envFrom optional: true) und braucht Bedrock nicht.
 #
 # SSO-Tokens laufen typischerweise nach 1h ab — dann erneut: `aws sso login`
-# + `make k8s-secrets` + `kubectl rollout restart deploy/api -n dev`.
+# + `make k8s-secrets` + `kubectl rollout restart deploy/api -n pre-prod`.
 
 k8s-secrets:
 	@command -v aws >/dev/null 2>&1 || { echo "aws-CLI fehlt — brew install awscli"; exit 1; }
@@ -99,16 +99,16 @@ k8s-secrets:
 	if [ -f projects/api/.env ]; then \
 	  grep -Ev '^(#|$$|AWS_ACCESS|AWS_SECRET|AWS_SESSION|AWS_CREDENTIAL)' projects/api/.env >> $$TMP || true; \
 	fi; \
-	kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -; \
-	kubectl -n dev delete secret bedrock-secret --ignore-not-found; \
-	kubectl -n dev create secret generic bedrock-secret --from-env-file=$$TMP
+	kubectl create namespace pre-prod --dry-run=client -o yaml | kubectl apply -f -; \
+	kubectl -n pre-prod delete secret bedrock-secret --ignore-not-found; \
+	kubectl -n pre-prod create secret generic bedrock-secret --from-env-file=$$TMP
 
-k8s-public:
-	kubectl apply -k k8s/overlays/public
+k8s-prod:
+	kubectl apply -k k8s/overlays/prod
 
-k8s-dev:
-	kubectl apply -k k8s/overlays/dev
+k8s-pre-prod:
+	kubectl apply -k k8s/overlays/pre-prod
 
 k8s-clean:
-	kubectl delete namespace public --ignore-not-found
-	kubectl delete namespace dev    --ignore-not-found
+	kubectl delete namespace prod     --ignore-not-found
+	kubectl delete namespace pre-prod --ignore-not-found

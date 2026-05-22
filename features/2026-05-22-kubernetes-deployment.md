@@ -547,6 +547,28 @@ kubectl exec -n public statefulset/postgres -- psql -U translations -c \
 4. **Promote-Rollback**: kein Mechanismus, eine versehentliche Überschreibung in `public` rückgängig zu machen. PVC-Snapshot oder Backup wäre der saubere Weg.
 5. **Cross-Namespace-NetworkPolicy**: Heute kann jeder Pod im Cluster `api.public.svc.cluster.local:8080` aufrufen. Für ein echtes Production-Setup muss eine NetworkPolicy festlegen, dass nur `api.dev` das darf — und nur auf `/i18n/translations/import`.
 
+### 11. Namespace-Umbenennung: `public` → `prod`, `dev` → `pre-prod`
+
+Reviewing nach #10: die ursprüngliche Namespace-Wahl `public`/`dev` aus der allerersten Iteration war zu sehr „from the engineer's seat" — `public` klang nach „öffentlich erreichbar", aber tatsächlich gemeint war „Produktions-Konsumenten-Sicht". `dev` suggerierte „Developer-Spielwiese", war aber eigentlich „Pre-Production mit Admin-Werkzeugen". Klarere Mental Models sind:
+
+- `prod` = die Konsumenten-Umgebung (so wie es ein Endkunde sehen würde)
+- `pre-prod` = die Werkbank zum Vorbereiten von Übersetzungen, mit Admin-UI + Bedrock
+
+**Refactoring:**
+- Verzeichnisse umbenannt: `k8s/overlays/public/` → `k8s/overlays/prod/`, `k8s/overlays/dev/` → `k8s/overlays/pre-prod/` (via `git mv`).
+- Inhalte angepasst: `namespace: …`, Ingress-Hostnames (`*.prod.localtest.me`, `*.pre-prod.localtest.me`), Cross-NS-DNS (`api.prod.svc.cluster.local`), Ingress-Resource-Namen (`prod-ingress`, `pre-prod-ingress`), Postgres-DB-Passwort-Patch (`translations-pre-prod`), Kustomize-Labels.
+- Makefile-Targets: `k8s-public` → `k8s-prod`, `k8s-dev` → `k8s-pre-prod`. `k8s-secrets` lädt jetzt in `pre-prod`, `k8s-clean` löscht beide. `.PHONY`-Liste angepasst.
+- `material/k8s-setup.plantuml`: PlantUML-Stereotypes `<<public>>`/`<<dev>>` → `<<prod>>`/`<<preprod>>` (Bindestrich in Stereotype-Namen sind in PlantUML problematisch → CamelCase). Interne Identifier (`nsPub`/`nsDev`/`apiPub`/…) entsprechend zu `nsProd`/`nsPre`/`apiProd`/`apiPre`. Notes + Labels aktualisiert. PNG neu gerendert.
+- `projects/web-ui-i18n/src/app/PromoteButton.tsx`: Button-Text `Promote dev → public (N)` → `Promote pre-prod → prod (N)`. Confirm-Dialog und Erfolgs-Banner ebenfalls.
+- `README.md` und `CLAUDE.md`: alle live referenzierten Namen aktualisiert (URL-Tabelle, `/etc/hosts`-Block, Troubleshooting-Bullets, Architektur-Stichworte, Promote-Workflow-Beschreibung).
+
+**Was bewusst NICHT umbenannt wurde:**
+- Die Env-Var `PUBLIC_API_BASE_URL` behält ihren Namen — sie bedeutet semantisch „das Promote-Ziel", nicht „der public-Namespace". Eine Umbenennung in z. B. `PROMOTE_TARGET_API_BASE_URL` wäre einen extra Refactor wert; für jetzt steht ein Kommentar im Code, der den historischen Namen erklärt.
+- Die historischen Sektionen 1–10 dieses Nachtrags reden weiter von `public`/`dev` — sie dokumentieren den Stand zum Zeitpunkt der jeweiligen Entscheidung. Wer den Doc liest, soll die Sektion #11 als Lese-Pivot kennen: ab hier sind die Namen `prod`/`pre-prod`, davor `public`/`dev`. Refactoring von Historie wäre unsauber.
+- Bestehende Container-Image-Tags (`api:dev`, `web-ui:dev`, `web-ui-i18n:dev`) — das `:dev` ist ein Tag-Convention, kein Namespace-Bezug. Bleibt.
+
+**Cluster-Switch**: alte Namespaces `public`/`dev` werden gelöscht, neue `prod`/`pre-prod` per `make k8s-prod && make k8s-pre-prod` neu erstellt. PVCs werden mit gelöscht — alle Übersetzungs-Daten gehen verloren. Im Dev-Setup ist das OK; in Production müsste ein DB-Dump als Migration zwischen den Namespaces laufen.
+
 ### Geänderte Files in diesem Nachtrag
 
 - `k8s/base/postgres.yaml` — `storageClassName: standard` entfernt.

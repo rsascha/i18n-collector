@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: pre-prod
+
+resources:
+  - namespace.yaml
+  - ../../base
+  - web-ui-i18n.yaml   # nur in pre-prod — in prod gibt es keinen Admin-Use-Case
+  - ingress.yaml
+
+# `pre-prod`-DB nutzt anderes Default-Passwort als `prod`, damit man bei
+# kreuz-konfiguriertem port-forward den Unterschied früh bemerkt.
+#
+# Außerdem: pre-prod/api bekommt PUBLIC_API_BASE_URL gesetzt, damit der
+# /translations/promote-Endpoint die prod-API cluster-intern erreichen kann.
+# (Env-Var-Name bleibt PUBLIC_API_BASE_URL aus historischen Gründen — er
+# steht für „das Promote-Ziel", unabhängig vom Namespace-Namen.)
+patches:
+  - target:
+      kind: Secret
+      name: postgres-secret
+    patch: |-
+      - op: replace
+        path: /stringData/POSTGRES_PASSWORD
+        value: translations-pre-prod
+  - target:
+      kind: Deployment
+      name: api
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: PUBLIC_API_BASE_URL
+          value: http://api.prod.svc.cluster.local:8080
+
+labels:
+  - pairs:
+      app.kubernetes.io/environment: pre-prod

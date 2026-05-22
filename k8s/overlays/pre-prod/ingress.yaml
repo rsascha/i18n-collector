@@ -1,11 +1,11 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: dev-ingress
+  name: pre-prod-ingress
 spec:
   ingressClassName: traefik
   rules:
-    - host: web-ui.dev.localtest.me
+    - host: web-ui.pre-prod.localtest.me
       http:
         paths:
           - path: /
@@ -16,7 +16,7 @@ spec:
                 port:
                   number: 3000
 
-    - host: admin.dev.localtest.me
+    - host: admin.pre-prod.localtest.me
       http:
         paths:
           - path: /
@@ -30,7 +30,7 @@ spec:
     # Spring-API ist nur über die Doku-Pfade (Swagger UI + OpenAPI-JSON)
     # erreichbar. Translations-CRUD läuft cluster-intern über api:8080,
     # erreichbar nur von web-ui und web-ui-i18n.
-    - host: api.dev.localtest.me
+    - host: api.pre-prod.localtest.me
       http:
         paths:
           - path: /swagger-ui
