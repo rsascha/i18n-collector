@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import i18n from "@/i18n/i18n";
+import i18n, { SUPPORTED_LNGS } from "@/i18n/i18n";
 
 function subscribe(callback: () => void) {
   i18n.on("languageChanged", callback);
@@ -24,8 +24,17 @@ export default function Home() {
     getServerSnapshot,
   );
 
-  const t = (key: string, defaultValue: string) =>
-    i18n.t(key, { defaultValue, lng: active });
+  // Triggert saveMissing für jede supportedLng, damit die API auch dann einen
+  // Fan-out machen kann, wenn der Key in der aktiven Sprache bereits existiert
+  // (sonst entstehen DE-PENDING-Zeilen erst beim Sprachwechsel).
+  const t = (key: string, defaultValue: string) => {
+    for (const lng of SUPPORTED_LNGS) {
+      if (lng !== active) {
+        i18n.t(key, { defaultValue, lng });
+      }
+    }
+    return i18n.t(key, { defaultValue, lng: active });
+  };
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">

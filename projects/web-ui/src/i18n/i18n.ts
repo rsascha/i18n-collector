@@ -4,15 +4,18 @@ import i18n from "i18next";
 import HttpApi from "i18next-http-backend";
 import { initReactI18next } from "react-i18next";
 
+// Synchron zu projects/api/src/main/resources/application.yml#app.i18n
+// halten — bei Erweiterung beide Stellen anpassen.
+export const SUPPORTED_LNGS = ["en", "de"] as const;
+
 if (!i18n.isInitialized) {
   void i18n
     .use(HttpApi)
     .use(initReactI18next)
     .init({
       fallbackLng: "en",
-      // Synchron zu projects/api/src/main/resources/application.yml#app.i18n
-      // halten — bei Erweiterung beide Stellen anpassen.
-      supportedLngs: ["en", "de"],
+      supportedLngs: [...SUPPORTED_LNGS],
+      preload: [...SUPPORTED_LNGS],
       ns: ["common"],
       defaultNS: "common",
       saveMissing: true,
