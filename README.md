@@ -143,6 +143,10 @@ make clean            # mvn clean + .next/tsbuildinfo-Cleanup
 
 Alternativer Deployment-Pfad neben `make dev`: zwei Namespaces (`public` und `dev`) mit jeweils komplettem Stack. Siehe `features/2026-05-22-kubernetes-deployment.md`.
 
+![K8s-Setup-Diagramm](material/k8s-setup.png)
+
+Quelle: [`material/k8s-setup.plantuml`](material/k8s-setup.plantuml) — neu rendern via `plantuml -tpng material/k8s-setup.plantuml`.
+
 ### Einmaliges Setup
 
 ```sh
