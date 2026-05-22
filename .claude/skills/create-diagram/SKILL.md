@@ -27,7 +27,11 @@ Ziel: Diagramme reproduzierbar in `material/` ablegen, konsistent stylen, automa
 make -C material build-pngs
 ```
 
-Das Target rendert _alle_ `.plantuml`-Dateien in `material/` zu `.png` (Pattern-Rule, nur Änderungen werden neu gerendert). Es lebt in `material/Makefile`, damit nicht das Root-Makefile mit Diagramm-Targets aufgebläht wird.
+Das Target macht zwei Dinge:
+1. Rendert _alle_ `.plantuml`-Dateien in `material/` zu `.png` (Pattern-Rule, nur Änderungen werden neu gerendert).
+2. Berechnet pro PNG einen Content-Hash (SHA-256, erste 8 Zeichen) und stempelt ihn als `?v=<hash>`-Query an die Image-Referenzen im Root-README. **Wichtig für GitHub**: ohne diesen Cache-Buster cached der Camo-Proxy alte Bilder, und Reader sehen nicht den aktuellen Stand. Mit Hash-Query ändert sich die URL bei jeder Bild-Änderung → frischer Fetch.
+
+Es lebt in `material/Makefile`, damit nicht das Root-Makefile mit Diagramm-Targets aufgebläht wird.
 
 Voraussetzung: `plantuml` ist installiert (`brew install plantuml`).
 
@@ -53,8 +57,10 @@ Pattern, das bereits im Repo etabliert ist:
 ```markdown
 ![Beschreibung](material/<name>.png)
 
-Quelle: [`material/<name>.plantuml`](material/<name>.plantuml) — neu rendern via `make -C material build-pngs`.
+Quelle: [`material/<name>.plantuml`](material/<name>.plantuml) — neu rendern via `make -C material build-pngs` (aktualisiert auch den `?v=<hash>`-Cache-Buster in dieser README).
 ```
+
+Den `?v=<hash>`-Cache-Buster NICHT manuell setzen — das macht `build-pngs` automatisch beim nächsten Render. Beim Einbau eines neuen Bildes reicht die schmucklose `material/<name>.png`-Referenz; der nächste `make build-pngs`-Lauf injiziert den Hash.
 
 Direkt unter die passende Section-Überschrift packen, _bevor_ Erklärungstext und Code-Blöcke folgen — das Diagramm dient als visueller Anker.
 

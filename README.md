@@ -6,9 +6,9 @@ hält und Bedrock für AI-Übersetzungen anruft.
 
 ## Architektur
 
-![Architektur-Diagramm](material/architecture.png)
+![Architektur-Diagramm](material/architecture.png?v=fd8291de)
 
-Quelle: [`material/architecture.plantuml`](material/architecture.plantuml) — neu rendern via `plantuml -tpng material/architecture.plantuml`.
+Quelle: [`material/architecture.plantuml`](material/architecture.plantuml) — neu rendern via `make -C material build-pngs` (aktualisiert auch den `?v=<hash>`-Cache-Buster in dieser README).
 
 ### Komponenten
 
@@ -143,9 +143,9 @@ make clean            # mvn clean + .next/tsbuildinfo-Cleanup
 
 Alternativer Deployment-Pfad neben `make dev`: zwei Namespaces (`prod` und `pre-prod`) mit jeweils eigenem Stack. `prod` ist die schlanke Konsumenten-Umgebung, `pre-prod` ist die Werkbank mit Admin-UI + Bedrock. Siehe `features/2026-05-22-kubernetes-deployment.md`.
 
-![K8s-Setup-Diagramm](material/k8s-setup.png)
+![K8s-Setup-Diagramm](material/k8s-setup.png?v=ec389e43)
 
-Quelle: [`material/k8s-setup.plantuml`](material/k8s-setup.plantuml) — neu rendern via `plantuml -tpng material/k8s-setup.plantuml`.
+Quelle: [`material/k8s-setup.plantuml`](material/k8s-setup.plantuml) — neu rendern via `make -C material build-pngs` (aktualisiert auch den `?v=<hash>`-Cache-Buster in dieser README).
 
 ### Einmaliges Setup
 
