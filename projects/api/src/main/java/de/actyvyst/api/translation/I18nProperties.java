@@ -11,7 +11,4 @@ import java.util.List;
  */
 @ConfigurationProperties(prefix = "app.i18n")
 public record I18nProperties(String sourceLng, List<String> supportedLngs) {
-    public List<String> targetLngs() {
-        return supportedLngs.stream().filter(lng -> !lng.equals(sourceLng)).toList();
-    }
 }

@@ -5,7 +5,7 @@ import HttpApi from "i18next-http-backend";
 import { initReactI18next } from "react-i18next";
 
 if (!i18n.isInitialized) {
-  i18n
+  void i18n
     .use(HttpApi)
     .use(initReactI18next)
     .init({

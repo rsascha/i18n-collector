@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// noinspection JSUnusedGlobalSymbols -- consumed by Playwright runner at startup
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,

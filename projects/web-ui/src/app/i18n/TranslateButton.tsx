@@ -25,7 +25,8 @@ export default function TranslateButton({ id, disabled }: Props) {
       });
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
+        setError(text || `HTTP ${res.status}`);
+        return;
       }
       startTransition(() => router.refresh());
     } catch (err) {

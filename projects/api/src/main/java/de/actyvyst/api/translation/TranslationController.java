@@ -39,7 +39,7 @@ public class TranslationController {
     ) {
         log.info("Missing-key report: lng={}, ns={}, body={}", lng, ns, body);
         if (body != null && !body.isEmpty()) {
-            translationService.recordMissingKeys(lng, body);
+            translationService.recordMissingKeys(body);
         }
         return ResponseEntity.ok().build();
     }

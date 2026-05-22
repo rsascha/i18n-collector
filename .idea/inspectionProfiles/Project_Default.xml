@@ -1,0 +1,9 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <!-- next/font injects font-geist-* CSS variables at runtime; static CSS resolver can't see them. -->
+    <inspection_tool class="CssUnresolvedCustomProperty" enabled="false" level="ERROR" enabled_by_default="false" />
+    <!-- Spring Boot smoke tests (contextLoads) intentionally have empty bodies. -->
+    <inspection_tool class="EmptyMethod" enabled="false" level="WARNING" enabled_by_default="false" />
+  </profile>
+</component>

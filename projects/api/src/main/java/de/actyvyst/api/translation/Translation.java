@@ -43,7 +43,7 @@ public class Translation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "message_key", nullable = false, length = 255)
+    @Column(name = "message_key", nullable = false)
     private String messageKey;
 
     @Column(name = "locale", nullable = false, length = 10)

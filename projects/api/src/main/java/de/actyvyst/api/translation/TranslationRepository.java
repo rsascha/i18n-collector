@@ -20,7 +20,7 @@ public interface TranslationRepository extends JpaRepository<Translation, Long> 
                     """,
             nativeQuery = true
     )
-    int insertIfAbsent(
+    void insertIfAbsent(
             @Param("messageKey") String messageKey,
             @Param("locale") String locale,
             @Param("value") String value,

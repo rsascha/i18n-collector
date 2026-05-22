@@ -32,11 +32,10 @@ public class TranslationService {
      * Erzeugt für jeden gemeldeten Key einen Eintrag pro {@code supportedLngs}:
      * {@code sourceLng} → {@code MANUAL} (mit defaultValue als kanonischem Source-Text),
      * alle übrigen Locales → {@code PENDING}. Idempotent via ON CONFLICT DO NOTHING.
-     * Die Locale aus der URL spielt für das Fan-out keine Rolle — das Verhalten ist
-     * symmetrisch, egal welche Sprache den missing-key-Report ausgelöst hat.
+     * Symmetrisch — die Report-Locale aus der URL spielt für das Fan-out keine Rolle.
      */
     @Transactional
-    public void recordMissingKeys(String reportLocale, Map<String, String> keysWithDefaults) {
+    public void recordMissingKeys(Map<String, String> keysWithDefaults) {
         String sourceLng = i18nProperties.sourceLng();
 
         keysWithDefaults.forEach((messageKey, defaultValue) -> {
@@ -80,11 +79,17 @@ public class TranslationService {
                 Text: %s
                 """.formatted(targetLanguage, englishText);
 
-        return chatClient.prompt()
+        String content = chatClient.prompt()
                 .user(prompt)
                 .call()
-                .content()
-                .trim();
+                .content();
+        if (content == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Bedrock returned no content for '" + englishText + "' (" + targetLocale + ")"
+            );
+        }
+        return content.trim();
     }
 
     private static String languageNameFor(String localeCode) {
