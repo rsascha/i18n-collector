@@ -23,6 +23,7 @@ Datenfluss-Eigenheiten, die man wissen muss:
 2. **`supportedLngs` muss synchron sein** zwischen `projects/web-ui/src/i18n/i18n.ts` (`SUPPORTED_LNGS`) und `projects/api/src/main/resources/application.yml#app.i18n`. Ein Cross-Reference-Kommentar steht in beiden Files.
 3. **`t(key, defaultValue)`-Konvention** (verbindlich): jeder `t()`-Call hat ein zweites Argument, den englischen Source-Text. Der `defaultValue` ist Flicker-frei-Render UND Bedrock-Input für die Übersetzung.
 4. **Server-side vs. Client-side Fetch in web-ui-i18n**: Server Components in `src/app/page.tsx` fetchen **direkt** gegen `API_BASE_URL` (cluster-intern in K8s). Client Components (`TranslateButton`, `EditableValueCell`, `DeleteKeyButton`) gehen über die same-origin Next-Route-Handler in `src/app/api/i18n/translations/`. Die Server-Component nimmt absichtlich nicht den eigenen Proxy — würde in K8s den eigenen Ingress-Hostname auflösen wollen.
+5. **Promote-Flow `dev → public`**: K8s-Setup hat zwei strikt getrennte Stacks. Der Sync ist ein expliziter Akt: Admin-Button in `web-ui-i18n` → `POST /api/i18n/promote` → dev/api ruft `exportApproved()` (nur `AI`+`MANUAL`) und postet an `public/api/i18n/translations/import` (`http://api.public.svc.cluster.local:8080`, cross-namespace, cluster-intern). UPSERT in public-DB. `PENDING` wird absichtlich nicht übertragen. `PUBLIC_API_BASE_URL` ist im dev-Overlay als Env-Var-Patch verankert; in `public` selbst leer → `/promote` dort `HTTP 503`.
 
 ## Kommandos (alles via Make)
 
@@ -55,6 +56,9 @@ pnpm --filter e2e-tests exec playwright test -g "Klick DE"
 - **Selektoren mit `getByRole("button", { name: "EN" })` brauchen `exact: true`**, weil Next-Dev-Tools-Buttons („Op**en**...") sonst matchen.
 - **Postgres-StatefulSet hat _kein_ `storageClassName` mehr** — Cluster-Default greift (Colima: `local-path`, GKE: `standard`). Explizites `storageClassName: standard` brach Colima.
 - **K8s-Probes der Next-Apps sind TCP, nicht HTTP** — die Admin-Seite ist Server Component und macht einen API-Fetch beim Render. HTTP-Probe auf `/` hätte den UI-Pod an den API-Status gekoppelt.
+- **`RestClient.Builder` ist in Spring Boot 4 + `webmvc` NICHT auto-konfiguriert** — entgegen dem Spring-Boot-3-Pattern. Wenn ein Service einen HTTP-Client braucht: `this.restClient = RestClient.create()` direkt im Konstruktor instanziieren, nicht über Builder-Bean.
+- **Bedrock-Auto-Config bypasst `spring.ai.bedrock.aws.region` aus `application.yml`** — der AWS-SDK-`DefaultAwsRegionProviderChain` läuft beim `BedrockProxyChatModel.Builder.<init>()`, bevor die Property-Auflösung wirkt. Region muss als echte Env-Var `AWS_REGION` gesetzt sein (siehe `k8s/base/api.yaml`).
+- **Promote-Endpoint nicht im Ingress** — `/i18n/translations/promote` und `/i18n/translations/import` sind cluster-interne Operationen. Der Ingress in `dev` exponiert nur web-ui, web-ui-i18n und `api.dev.localtest.me/swagger-ui|v3/api-docs`. Promote wird nur über web-ui-i18n (das wiederum same-origin via Next-Route-Handler proxyt) ausgelöst.
 
 ## Weiterführende Doku
 

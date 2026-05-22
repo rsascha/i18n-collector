@@ -37,6 +37,11 @@ spec:
             - name: http
               containerPort: 8080
           env:
+            # Bedrock-Auto-Config liest die Region beim Startup über den
+            # AWS-SDK-Region-Provider-Chain, der die Property-Auflösung aus
+            # application.yml umgeht. Explizite Env-Var stellt das sicher.
+            - name: AWS_REGION
+              value: eu-central-1
             - name: DB_HOST
               value: postgres
             - name: DB_PORT

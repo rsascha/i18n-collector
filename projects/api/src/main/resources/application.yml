@@ -36,6 +36,11 @@ app:
     supported-lngs:
       - en
       - de
+  sync:
+    # Ziel-API für den Promote-Flow. In `dev` per Env-Var auf den
+    # public-Namespace-Service gesetzt (`http://api.public.svc.cluster.local:8080`),
+    # in `public` selbst leer → /translations/promote ist dort nicht nutzbar.
+    public-api-base-url: ${PUBLIC_API_BASE_URL:}
 
 logging:
   level:

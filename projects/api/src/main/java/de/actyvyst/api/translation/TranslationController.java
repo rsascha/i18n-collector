@@ -72,5 +72,18 @@ public class TranslationController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/translations/import")
+    public int importTranslations(@RequestBody List<TranslationDto> payload) {
+        log.info("Import: {} Zeilen eingegangen", payload != null ? payload.size() : 0);
+        return translationService.importTranslations(payload);
+    }
+
+    @PostMapping("/translations/promote")
+    public PromoteResult promote() {
+        int promoted = translationService.promote();
+        return new PromoteResult(promoted);
+    }
+
     public record UpdateValueRequest(String value) {}
+    public record PromoteResult(int promoted) {}
 }

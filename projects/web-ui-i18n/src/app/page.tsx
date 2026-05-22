@@ -1,5 +1,6 @@
 import DeleteKeyButton from "./DeleteKeyButton";
 import EditableValueCell from "./EditableValueCell";
+import PromoteButton from "./PromoteButton";
 import TranslateButton from "./TranslateButton";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:8080";
@@ -52,11 +53,17 @@ export default async function TranslationsPage() {
       ? a.locale.localeCompare(b.locale)
       : a.messageKey.localeCompare(b.messageKey),
   );
+  const approvedCount = rows.filter(
+    (r) => r.source === "AI" || r.source === "MANUAL",
+  ).length;
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
       <main className="mx-auto w-full max-w-6xl px-6 py-12">
-        <h1 className="mb-6 text-2xl font-semibold">Translations</h1>
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Translations</h1>
+          <PromoteButton approvedCount={approvedCount} />
+        </div>
 
         {rows.length === 0 ? (
           <p className="text-zinc-600 dark:text-zinc-400">

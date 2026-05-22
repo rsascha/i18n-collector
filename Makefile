@@ -71,13 +71,17 @@ ingress:
 	  --set ports.web.port=80 \
 	  --set ports.web.exposedPort=80
 
-# Lädt das bedrock-secret in beide Namespaces. AWS-Credentials werden live
-# vom aws-CLI gezogen (`configure export-credentials`) — funktioniert sowohl
-# mit SSO als auch mit statischen Keys. Weitere Werte (AWS_REGION,
+# Lädt das bedrock-secret in den `dev`-Namespace. AWS-Credentials werden
+# live vom aws-CLI gezogen (`configure export-credentials`) — funktioniert
+# sowohl mit SSO als auch mit statischen Keys. Weitere Werte (AWS_REGION,
 # BEDROCK_MODEL_ID) kommen aus projects/api/.env, falls vorhanden.
 #
+# `public` bekommt das Secret bewusst nicht: Auto-Translate sitzt in
+# web-ui-i18n und ist nur in `dev` deployed. Der `public`-API-Pod startet
+# auch ohne Creds (envFrom optional: true) und braucht Bedrock nicht.
+#
 # SSO-Tokens laufen typischerweise nach 1h ab — dann erneut: `aws sso login`
-# + `make k8s-secrets` + `kubectl rollout restart deploy/api -n {public,dev}`.
+# + `make k8s-secrets` + `kubectl rollout restart deploy/api -n dev`.
 
 k8s-secrets:
 	@command -v aws >/dev/null 2>&1 || { echo "aws-CLI fehlt — brew install awscli"; exit 1; }
@@ -95,11 +99,9 @@ k8s-secrets:
 	if [ -f projects/api/.env ]; then \
 	  grep -Ev '^(#|$$|AWS_ACCESS|AWS_SECRET|AWS_SESSION|AWS_CREDENTIAL)' projects/api/.env >> $$TMP || true; \
 	fi; \
-	for ns in public dev; do \
-	  kubectl create namespace $$ns --dry-run=client -o yaml | kubectl apply -f -; \
-	  kubectl -n $$ns delete secret bedrock-secret --ignore-not-found; \
-	  kubectl -n $$ns create secret generic bedrock-secret --from-env-file=$$TMP; \
-	done
+	kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -; \
+	kubectl -n dev delete secret bedrock-secret --ignore-not-found; \
+	kubectl -n dev create secret generic bedrock-secret --from-env-file=$$TMP
 
 k8s-public:
 	kubectl apply -k k8s/overlays/public

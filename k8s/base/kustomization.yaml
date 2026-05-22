@@ -14,7 +14,10 @@ resources:
   - postgres.yaml
   - api.yaml
   - web-ui.yaml
-  - web-ui-i18n.yaml
+  # web-ui-i18n ist NICHT in base — das Manifest liegt unter
+  # k8s/overlays/dev/web-ui-i18n.yaml und wird nur dort eingehängt. In
+  # `public` gibt es keinen Admin-Use-Case, also wird er dort auch nicht
+  # deployed.
 
 labels:
   - pairs:

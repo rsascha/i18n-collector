@@ -71,9 +71,8 @@ rectangle "Colima VM (k3s)" <<colima>> as colima {
   }
 
   rectangle "Namespace: public" <<public>> as nsPub {
-    rectangle "Ingress\n(nur web-ui exponiert)" <<pod>> as ingPub
+    rectangle "Ingress\n(nur web-ui)" <<pod>> as ingPub
     rectangle "web-ui :3000" <<pod>> as webPub
-    rectangle "web-ui-i18n :3001\n(cluster-intern)" <<pod>> as adminPub
     rectangle "api :8080" <<pod>> as apiPub
     database "postgres :5432\n(PVC 1Gi)" <<pod>> as pgPub
   }
@@ -102,27 +101,28 @@ ingDev --> adminDev
 ingDev --> apiDev   : /swagger-ui\n/v3/api-docs
 
 webPub      --> apiPub  : SSR/Proxy\nAPI_BASE_URL=\nhttp://api:8080
-adminPub    --> apiPub  : (cluster-intern, kein Ingress)
 webDev      --> apiDev
 adminDev    --> apiDev
 
 apiPub --> pgPub : JDBC
 apiDev --> pgDev : JDBC
 
-apiPub --> bedrock : Spring AI\nConverse
-apiDev --> bedrock
+apiDev --> bedrock : Spring AI\nConverse\n(nur dev — Auto-Translate\nsitzt in web-ui-i18n)
+
+apiDev ..> apiPub : Promote-Flow\nPOST /i18n/translations/import\n(UPSERT, nur AI+MANUAL)\ncluster-intern
 
 note right of nsPub
   Konsumenten-Sicht.
-  admin und swagger laufen,
-  sind aber nicht im Ingress.
+  Schlanker Stack: kein
+  Admin-UI deployed.
 end note
 
 note right of nsDev
   Admin-Sicht.
   Eigener kompletter Stack.
-  Eigene DB — keine Daten-
-  Vermischung mit public.
+  Promote-Button schiebt
+  AI+MANUAL-Zeilen
+  cross-namespace nach public.
 end note
 
 @enduml

@@ -26,4 +26,25 @@ public interface TranslationRepository extends JpaRepository<Translation, Long> 
             @Param("value") String value,
             @Param("source") String source
     );
+
+    List<Translation> findAllBySourceIn(List<TranslationSource> sources);
+
+    @Modifying
+    @Query(
+            value = """
+                    INSERT INTO translations (message_key, locale, value, source, created_at, updated_at)
+                    VALUES (:messageKey, :locale, :value, :source, now(), now())
+                    ON CONFLICT (message_key, locale) DO UPDATE
+                    SET value = EXCLUDED.value,
+                        source = EXCLUDED.source,
+                        updated_at = now()
+                    """,
+            nativeQuery = true
+    )
+    void upsert(
+            @Param("messageKey") String messageKey,
+            @Param("locale") String locale,
+            @Param("value") String value,
+            @Param("source") String source
+    );
 }

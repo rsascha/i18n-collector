@@ -9,16 +9,17 @@ Diese Iteration verlegt den kompletten Stack in einen lokalen Kubernetes-Cluster
 
 ## Ziel dieser Iteration
 
-Zwei voll funktionsfähige K8s-Namespaces, beide enthalten den vollständigen Stack — aber nach außen unterschiedlich freigegeben:
+Zwei K8s-Namespaces mit unterschiedlichem Scope:
 
 | Namespace | Was läuft drin                            | Ingress-Exposure                                                                 |
 | --------- | ----------------------------------------- | -------------------------------------------------------------------------------- |
-| `public`  | web-ui, web-ui-i18n, Spring-API, Postgres | nur web-ui (Konsumenten-Sicht; Admin und Swagger sind nicht erreichbar)          |
+| `public`  | web-ui, Spring-API, Postgres              | nur web-ui (schlanker Konsumenten-Stack, kein Admin-UI deployed)                 |
 | `dev`     | web-ui, web-ui-i18n, Spring-API, Postgres | web-ui + web-ui-i18n + Spring-API-Swagger (`/swagger-ui.html`, `/v3/api-docs/*`) |
 
 Daraus folgt:
 
-- web-ui-i18n und Swagger laufen technisch auch in `public`, sind aber nur cluster-intern erreichbar (`ClusterIP`-Services, nicht im Ingress). Sicherheits-Default: was nicht im Ingress steht, ist von außen unsichtbar.
+- **web-ui-i18n läuft ausschließlich in `dev`** — in `public` gibt es keinen Admin-Use-Case, also wird der Pod dort gar nicht erst deployed. Spart Ressourcen, vermeidet falsche Sicherheits-Annahmen („läuft, aber nicht im Ingress").
+- Swagger ist nur in `dev` exponiert; in `public` ist der Pfad im Ingress nicht gemappt.
 - Jeder Namespace ist vollständig selbsterhaltend (eigene API, eigene DB). Namespace-Löschen ist „Reset".
 
 ## Entscheidungen aus dem Ask-Before-Development-Lauf
@@ -136,7 +137,8 @@ k8s-clean:
 3. `make k8s-public && make k8s-dev` — beide Namespaces deployen ohne `CrashLoopBackOff`. `kubectl get pods -n public` und `-n dev` zeigen alle Pods `Running`.
 4. **`public`**:
    - `http://web-ui.public.localtest.me/` zeigt die Demo-Seite mit Sprachumschalter.
-   - `http://admin.public.localtest.me/` → 404 (nicht im Ingress).
+   - `kubectl get pods -n public` zeigt nur api + postgres + web-ui (kein web-ui-i18n).
+   - `http://admin.public.localtest.me/` → 404 (Hostname existiert nicht).
    - `http://api.public.localtest.me/swagger-ui.html` → 404 (nicht im Ingress).
 5. **`dev`**:
    - `http://web-ui.dev.localtest.me/` zeigt die Demo-Seite.
@@ -420,6 +422,131 @@ kubectl rollout restart deploy/api -n public -n dev
 
 Im README dokumentiert.
 
+### 8. `web-ui-i18n` in `public` ist totes Gewicht
+
+Beim Review des Setups fiel auf: `web-ui-i18n` läuft zwar in `public` (analog zu `dev`), ist aber nicht im Ingress. Der Pod konsumiert Ressourcen für einen Zweck, der dort nie eintreten kann. Die ursprüngliche „beide Namespaces enthalten den vollständigen Stack, nur das Ingress unterscheidet sich"-Symmetrie war konzeptionell schön, praktisch aber Verschwendung.
+
+**Fix**: `web-ui-i18n.yaml` aus `k8s/base/` entfernt und nach `k8s/overlays/dev/web-ui-i18n.yaml` verschoben. Nur das dev-Overlay zieht das Manifest mit ein.
+
+Kustomize-Detail dabei gelernt: ein Overlay darf aus Sicherheitsgründen nicht direkt auf einzelne Files in fremden Verzeichnissen verweisen (`accumulation err: ... is not in or below ...`). Entweder muss das File im eigenen Overlay-Tree liegen oder in einem Sub-Kustomization-Ordner. Wir haben uns für „File ins Overlay verschieben" entschieden — minimale Ceremony.
+
+**Architektur-Lehre**: Ingress als alleinige Trust-Boundary klingt theoretisch konsistent, läuft aber leicht in das Anti-Pattern „läuft im Cluster, ist aber nicht erreichbar". Klarer: Ressourcen, die in einem Environment keinen Use-Case haben, werden dort auch nicht deployed. Reduziert Cognitive Overhead beim Lesen von `kubectl get pods -n <ns>`.
+
+### 9. Bedrock-Secret und Bedrock-Verbindung gehören nicht in `public`
+
+Direkte Folge aus #8: wenn `web-ui-i18n` nur in `dev` läuft, gibt es in `public` keinen Aufrufer für `/translations/{id}/translate`. Der Spring-API-Pod in `public` läuft also dauerhaft mit einer Bedrock-Verbindung, die nie genutzt wird, und einem AWS-Secret, das nur SSO-Token-Renewal-Aufwand verursacht.
+
+**Fix**: `make k8s-secrets` legt das Secret nur noch im `dev`-Namespace an. Der API-Pod in `public` startet weiter sauber, weil `envFrom: bedrock-secret` auf `optional: true` steht — ohne Secret wird die Env-Var-Referenz einfach übersprungen. Solange `/translations/{id}/translate` aus `public` nicht aufgerufen wird (und das kann auch nicht: kein Admin-UI deployed, Endpoint nicht im Ingress), gibt es nie einen Bedrock-Call.
+
+```diff
+- for ns in public dev; do
+-   kubectl -n $ns create secret generic bedrock-secret --from-env-file=$TMP
+- done
++ kubectl -n dev create secret generic bedrock-secret --from-env-file=$TMP
+```
+
+**SSO-Renewal-Workflow** entsprechend nur noch ein Rollout:
+
+```sh
+aws sso login
+make k8s-secrets
+kubectl rollout restart deploy/api -n dev   # public bleibt unangetastet
+```
+
+**Architektur-Lehre (Fortsetzung von #8)**: Das Prinzip „Was im Environment keinen Use-Case hat, wird dort nicht deployed/konfiguriert" lässt sich nicht nur auf Pods, sondern auch auf Secrets, External-Dependencies und Env-Vars anwenden. Jede Komponente, die in einem Environment nicht gebraucht wird, erzeugt operationellen Overhead (Secret-Rotation, Monitoring-Noise, IAM-Berechtigungen) ohne Wertbeitrag.
+
+### 10. Promote-Flow von dev nach public
+
+Die harte Namespace-Trennung (#8 + #9) hat den Trade-off mit sich gebracht, dass es keine automatische Brücke zwischen den DBs gibt: Developer pflegt Übersetzungen in `dev` (per `make dev` oder direkt in der Admin-UI), aber `public` braucht die fertigen Werte für seine Konsumenten. Ohne Brücke endet jeder neue Key in `public` als PENDING — und bleibt es, weil dort kein Admin-UI und kein Bedrock existieren.
+
+**Lösung**: API-mediated Sync mit Button in `web-ui-i18n`. Nicht Push-on-Save, sondern explizit getriggert — ein bewusster Promote-Schritt analog zu „Release". Damit ist klar: `dev` ist die Werkbank, der Push nach `public` ist ein deliberate Akt.
+
+#### Entscheidungen aus dem Ask-Before-Development-Lauf
+- **Orchestration in dev/api**: web-ui-i18n ruft nur einen Endpoint (`POST /i18n/translations/promote`) seiner eigenen API. Die API orchestriert intern den Export + Cross-Namespace-Push. Saubere Layer-Trennung — UI kennt keinen Cross-Namespace-Concern.
+- **Conflict-Behavior**: `ON CONFLICT (message_key, locale) DO UPDATE`. public/PENDING wird durch dev/AI ersetzt — genau der Promote-Zweck. Idempotent: Re-runs überschreiben mit denselben Werten.
+- **Source-Filter**: nur `AI` + `MANUAL` werden exportiert. `PENDING` ist „halbe Arbeit" und gehört nicht zum Release.
+- **UX**: Button in der Toolbar oberhalb der Tabelle (`flex justify-between` mit `<h1>`). Vor dem POST `window.confirm()` mit Counter („6 approved Zeile(n) nach public promoten?"). Erfolgs-/Fehler-Banner inline unter dem Button.
+
+#### Neu / Geändert
+
+##### `projects/api`
+- `SyncProperties.java` (neu) — `@ConfigurationProperties("app.sync")` mit `publicApiBaseUrl`. Bewusst leerstring-tolerant: in `public` selbst nicht gesetzt → `/promote` ist dort `HTTP 503`.
+- `ApiApplication.java` — `@EnableConfigurationProperties` um `SyncProperties` erweitert.
+- `application.yml` — neuer Block `app.sync.public-api-base-url: ${PUBLIC_API_BASE_URL:}`.
+- `TranslationRepository.java` — neue `findAllBySourceIn(List<TranslationSource>)`-Derived-Query, neue native `upsert(...)`-Query mit `ON CONFLICT DO UPDATE SET value, source, updated_at`.
+- `TranslationService.java`:
+  - Neuer Konstruktor-Parameter `SyncProperties syncProperties`; `RestClient` per `RestClient.create()` direkt instanziiert (siehe Bug #10a).
+  - `exportApproved()`: liefert `List<TranslationDto>` für `source IN (AI, MANUAL)`.
+  - `importTranslations(List<TranslationDto>)`: ruft `repository.upsert(...)` pro Eintrag, returnt Count.
+  - `promote()`: ruft `exportApproved()`, prüft `publicApiBaseUrl != blank`, postet via `RestClient` an `${baseUrl}/i18n/translations/import`, parst `Integer` als Antwort, returnt Count. `RestClientException` → `HTTP 502` mit Ursache. Leere Quelle → `0` ohne HTTP-Call.
+- `TranslationController.java`:
+  - `POST /i18n/translations/import` — nimmt `List<TranslationDto>`, ruft Service, returnt `int`.
+  - `POST /i18n/translations/promote` — ruft Service, returnt `record PromoteResult(int promoted)`.
+
+##### `projects/web-ui-i18n`
+- `src/app/api/i18n/promote/route.ts` (neu) — schmaler POST-Proxy zu `${API_BASE_URL}/i18n/translations/promote`. Reicht Status + Body durch.
+- `src/app/PromoteButton.tsx` (neu) — Client Component. `useState`-Result mit Discriminated Union `{kind:"ok"|"err"}`, `useTransition` für `router.refresh()` nach Erfolg. `window.confirm()` mit Live-Counter aus Props. Inline-Banner grün/rot.
+- `src/app/page.tsx`:
+  - Importiert `PromoteButton`.
+  - Berechnet `approvedCount = rows.filter(r => r.source === "AI" || r.source === "MANUAL").length`.
+  - Header von `<h1>` zu `<div class="flex justify-between">` mit Heading + `<PromoteButton approvedCount={…} />`.
+
+##### `k8s/`
+- `k8s/overlays/dev/kustomization.yaml` — JSON-Patch ergänzt, der dem `api`-Deployment in `dev` die Env-Var `PUBLIC_API_BASE_URL=http://api.public.svc.cluster.local:8080` anhängt. In `public` _nicht_ gesetzt → `promote` dort `503`.
+- `k8s/base/api.yaml` — Env-Var `AWS_REGION=eu-central-1` als Default für alle Namespaces (siehe Bug #10b).
+
+##### `material/k8s-setup.plantuml`
+- Cross-Namespace-Pfeil `apiDev → apiPub` ergänzt mit Label „POST /i18n/translations/import (UPSERT, nur AI+MANUAL)". PNG neu gerendert.
+
+#### Bugs, die nebenher rauskamen
+
+**#10a — `RestClient.Builder` in Spring Boot 4 + `webmvc` ist nicht auto-konfiguriert.** Bei meinem ersten Wurf hatte ich `RestClient.Builder restClientBuilder` als Konstruktor-Parameter erwartet (Spring-Boot-3-Pattern). Spring schmiss `UnsatisfiedDependencyException: No qualifying bean of type 'RestClient.Builder'`. Fix: `this.restClient = RestClient.create();` direkt im Konstruktor.
+
+**#10b — Bedrock-Auto-Config bypasst `application.yml`-Property bei der Region-Auflösung.** Beim API-Restart nach #10a crashte der Pod mit `SdkClientException: Unable to load region from any of the providers in the chain`. Das Bedrock-Property `spring.ai.bedrock.aws.region: ${AWS_REGION:eu-central-1}` reicht nicht — die `BedrockProxyChatModel.Builder.<init>(...)` ruft direkt den AWS-SDK-`DefaultAwsRegionProviderChain` auf, der die Property-Auflösung umgeht. Lösung: `AWS_REGION` als echte Env-Var auf dem Container setzen. Im `k8s/base/api.yaml`-Manifest verankert, damit es für beide Namespaces gilt (auch `public` braucht's, weil sonst der Pod nach SDK-Region-Suche scheitert — selbst wenn Bedrock dort nie genutzt wird, ist die Auto-Config-Bean-Creation am Startup zwingend).
+
+#### Designentscheidungen
+- **`PromoteResult` als Record** — kleines DTO, kein Boilerplate, JSON-Serialization durch Jackson automatisch.
+- **`window.confirm()` statt eigener Modal-Komponente** — die einzige Bestätigungs-Action in der App; eigener Modal wäre Overkill, drei UI-Patterns für drei verschiedene Buttons (`Translate`, `Delete`, `Promote`) brauchen wir nicht.
+- **Counter im Button-Text statt separatem Label** — Information-Density-Trick: `Promote dev → public (6)` zeigt sofort, wie viele Zeilen betroffen sind. User sieht ohne zweiten Blick, ob's was zu tun gibt (`(0)` → Button disabled).
+- **`router.refresh()` nach Erfolg** — die Tabelle aktualisiert sich, falls in der Zwischenzeit `updated_at` gewandert ist. Konsistent zum Pattern bei `TranslateButton`/`EditableValueCell`/`DeleteKeyButton`.
+- **Promote-Endpoint NICHT im Ingress exponiert** — der Translate-Endpoint und Promote sind cluster-interne Operationen, der Ingress in `dev` exponiert nur `web-ui-i18n` (das ruft sie weiter) plus die Doku-Pfade. Damit ist die Trust-Boundary „Wer auf `:3001` zugreifen darf, kann auch Promote auslösen" — was im Dev-Cluster gewollt ist, in Prod aber Auth braucht.
+
+#### Abnahme — bestätigt ✅
+
+End-to-end durchgespielt:
+
+| Schritt | Aktion | Ergebnis |
+| --- | --- | --- |
+| 1 | Admin-Seite öffnen | Button zeigt `Promote dev → public (6)` (Counter = approved Zeilen) ✅ |
+| 2 | Neuen Missing-Key triggern: `POST /api/i18n/en/common` mit `{"sync.demo":"Sync demonstration"}` | Fan-out: `sync.demo/en/MANUAL` + `sync.demo/de/PENDING` in `dev` ✅ |
+| 3 | Promote-Button klicken | Confirm-Dialog → `POST /api/i18n/promote` → `{"promoted":7}` ✅ |
+| 4 | public-DB checken: `SELECT … WHERE message_key='sync.demo'` | Nur `sync.demo/en/MANUAL` mit dev-Value vorhanden — `sync.demo/de` (PENDING in dev) wurde bewusst nicht übertragen ✅ |
+| 5 | `unknown.key/de` war in `public` PENDING, in `dev` AI mit „Unbekannter Schlüssel Test" | Nach Promote in `public` jetzt `AI` mit deutschem Wert ✅ |
+| 6 | Re-Run Promote | Idempotent: `{"promoted":7}` erneut, keine Duplikate, `updated_at` aktualisiert ✅ |
+
+Verifizierungs-Befehle:
+
+```sh
+# Source-DB
+kubectl exec -n dev statefulset/postgres -- psql -U translations -c \
+  "SELECT message_key, locale, source FROM translations WHERE source IN ('AI','MANUAL')"
+
+# Promote (cluster-intern, weil promote nicht im Ingress)
+kubectl exec -n dev deploy/web-ui-i18n -- wget -q -O- -X POST \
+  http://api:8080/i18n/translations/promote
+
+# Ziel-DB
+kubectl exec -n public statefulset/postgres -- psql -U translations -c \
+  "SELECT message_key, locale, value, source FROM translations"
+```
+
+#### Offene Folgepunkte für die Promote-Mechanik
+1. **Auto-Promote bei `translatePending`**: Naheliegend — sobald eine PENDING-Zeile in `dev` zu AI wird, könnte der Service direkt einen Promote-Call für diese eine Zeile machen. Spart den manuellen Button-Klick. Trade-off: weniger Kontrolle, mehr Cross-Namespace-Traffic. Erst wenn der manuelle Flow lästig wird.
+2. **Promote-Diff-Preview**: Modal mit „diese 6 Zeilen werden überschrieben" vor dem POST. Aktuell nur Counter, kein Inhalts-Preview. Für eine echte Production-UX hilfreich.
+3. **Promote-Audit-Log**: Spring-API könnte jeden Promote-Call protokollieren (wer, wann, was). Heute nur `log.info("Promoted N Zeilen ...")` — flüchtig.
+4. **Promote-Rollback**: kein Mechanismus, eine versehentliche Überschreibung in `public` rückgängig zu machen. PVC-Snapshot oder Backup wäre der saubere Weg.
+5. **Cross-Namespace-NetworkPolicy**: Heute kann jeder Pod im Cluster `api.public.svc.cluster.local:8080` aufrufen. Für ein echtes Production-Setup muss eine NetworkPolicy festlegen, dass nur `api.dev` das darf — und nur auf `/i18n/translations/import`.
+
 ### Geänderte Files in diesem Nachtrag
 
 - `k8s/base/postgres.yaml` — `storageClassName: standard` entfernt.
@@ -428,7 +555,26 @@ Im README dokumentiert.
   - neuer Target `ingress` (Helm-Install für Traefik) + `.PHONY`-Liste ergänzt. Anmerkung: zwischenzeitlich `k8s-traefik` getauft, dann auf das kürzere `ingress` umbenannt (konsistent zum Stil von `dev`/`images`).
   - `k8s-secrets` komplett umgebaut: zieht AWS-Creds live via `aws configure export-credentials` statt aus statischer `.env`. Funktioniert mit SSO und statischen Keys.
 - `projects/web-ui-i18n/src/app/page.tsx` — `fetchTranslations()` direkt gegen `API_BASE_URL` statt über `headers().host`-Indirektion.
+- `k8s/base/kustomization.yaml` + `k8s/base/web-ui-i18n.yaml` → `k8s/overlays/dev/web-ui-i18n.yaml`. `web-ui-i18n` ist jetzt dev-exklusiv.
+- `material/k8s-setup.plantuml` — `adminPub` (web-ui-i18n in public) entfernt; `apiPub → bedrock`-Verbindung entfernt; Bedrock-Label klargestellt „nur dev — Auto-Translate sitzt in web-ui-i18n"; Note auf „Schlanker Stack: kein Admin-UI deployed" aktualisiert. PNG neu gerendert.
+- `Makefile` (`k8s-secrets`) — Loop entfernt; Secret wird nur noch in `dev` angelegt. Kommentar erklärt warum.
+- `README.md` — SSO-Renewal-Workflow auf `-n dev` reduziert; Troubleshooting-Bullet und Deployment-Step-Kommentar an die neue Topologie angepasst.
 - `README.md` — K8s-Sektion in „Einmaliges Setup" + „Deployment-Loop" geteilt; `--memory 4`-Erklärung; neuer Block „DNS für `*.localtest.me`" mit `/etc/hosts`-Variante und Router-Whitelisting-Cheat-Sheet (FritzBox/OpenWrt/UniFi/pi-hole).
+
+#### Promote-Flow (#10):
+
+- `projects/api/src/main/java/de/actyvyst/api/translation/SyncProperties.java` (neu).
+- `projects/api/src/main/java/de/actyvyst/api/ApiApplication.java` — `@EnableConfigurationProperties` um `SyncProperties` erweitert.
+- `projects/api/src/main/java/de/actyvyst/api/translation/TranslationRepository.java` — `findAllBySourceIn` + `upsert` ergänzt.
+- `projects/api/src/main/java/de/actyvyst/api/translation/TranslationService.java` — `exportApproved`/`importTranslations`/`promote` + `RestClient.create()` + `SyncProperties`-Injection.
+- `projects/api/src/main/java/de/actyvyst/api/translation/TranslationController.java` — `POST /translations/import` + `POST /translations/promote` + `record PromoteResult`.
+- `projects/api/src/main/resources/application.yml` — `app.sync.public-api-base-url` Block.
+- `k8s/base/api.yaml` — `AWS_REGION=eu-central-1` als Env-Var (Bedrock-Auto-Config bypasst application.yml).
+- `k8s/overlays/dev/kustomization.yaml` — JSON-Patch für `PUBLIC_API_BASE_URL` auf dem api-Deployment in dev.
+- `projects/web-ui-i18n/src/app/api/i18n/promote/route.ts` (neu) — POST-Proxy.
+- `projects/web-ui-i18n/src/app/PromoteButton.tsx` (neu) — Client Component mit Confirm + Inline-Banner.
+- `projects/web-ui-i18n/src/app/page.tsx` — Toolbar-Layout + `approvedCount`-Berechnung.
+- `material/k8s-setup.plantuml` — `apiDev → apiPub`-Promote-Pfeil (siehe nächster Diagramm-Update).
 
 ## Folgearbeiten (außerhalb dieser Iteration)
 - **NetworkPolicies**: für ein echtes Cluster Pflicht. Lokal verzichtbar.

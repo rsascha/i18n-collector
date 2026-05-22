@@ -218,9 +218,10 @@ Vorteil B vs. A: gilt für alle Geräte im Heimnetz, ein-für-allemal. Nachteil:
 # 1. Container-Images in den Colima-Daemon laden
 make images
 
-# 2. Bedrock-Credentials in beide Namespaces als Secret.
+# 2. Bedrock-Credentials nur in den `dev`-Namespace als Secret.
+#    `public` braucht Bedrock nicht (kein Admin-UI, keine Auto-Translate-Calls).
 #    Voraussetzung: aws-CLI ist eingeloggt (sonst `aws sso login` vorab).
-#    Re-Run nach Token-Ablauf reicht — Pods müssen aber neu gestartet werden
+#    Re-Run nach Token-Ablauf reicht — Pod muss aber neu gestartet werden
 #    (siehe Troubleshooting unten).
 make k8s-secrets
 
@@ -232,13 +233,26 @@ make k8s-dev
 make k8s-clean
 ```
 
+### Promote dev → public
+
+Übersetzungen werden in `dev` gepflegt (Demo-Seite triggert Missing-Keys, Admin-UI lässt Bedrock-Auto-Translate laufen). `public` braucht die fertigen Werte für seine Konsumenten — die Brücke ist der **Promote-Button** in der Admin-UI (`admin.dev.localtest.me`):
+
+1. Toolbar oberhalb der Tabelle zeigt `Promote dev → public (N)` mit Counter der approved Zeilen (`AI` + `MANUAL`).
+2. Klick → Confirm-Dialog → `POST /api/i18n/promote` → dev/api orchestriert den Push an `http://api.public.svc.cluster.local:8080/i18n/translations/import` (cluster-intern, kein Ingress).
+3. UPSERT in public-DB: `ON CONFLICT (message_key, locale) DO UPDATE`. `PENDING`-Zeilen in `dev` werden bewusst nicht promoted — nur „fertige" Übersetzungen.
+4. Inline-Banner unter dem Button zeigt Erfolgs-Counter oder Fehler.
+
+Idempotent: Mehrfaches Klicken ist sicher, ein erneuter Promote überschreibt mit denselben Werten. Voraussetzung: `PUBLIC_API_BASE_URL`-Env-Var auf dem dev/api-Deployment (im `k8s/overlays/dev/kustomization.yaml` als Patch verankert).
+
+### URLs
+
 URLs (Traefik-Ingress, `*.localtest.me` → 127.0.0.1):
 
-| Namespace | URL                                                                   |
-| --------- | --------------------------------------------------------------------- |
-| `public`  | `http://web-ui.public.localtest.me`                                   |
-| `dev`     | `http://web-ui.dev.localtest.me`, `http://admin.dev.localtest.me`     |
-| `dev`     | `http://api.dev.localtest.me/swagger-ui` (nur Doku-Pfade exponiert)   |
+| Namespace | URL                                                               |
+| --------- |-------------------------------------------------------------------|
+| `public`  | http://web-ui.public.localtest.me                                 |
+| `dev`     | http://web-ui.dev.localtest.me, http://admin.dev.localtest.me     |
+| `dev`     | http://api.dev.localtest.me/swagger-ui (nur Doku-Pfade exponiert) |
 
 ## Troubleshooting
 
@@ -255,12 +269,13 @@ URLs (Traefik-Ingress, `*.localtest.me` → 127.0.0.1):
 - **K8s: `kubectl get secret bedrock-secret -n dev` zeigt `DATA 0`** — das Secret
   wurde leer angelegt, weil zum Zeitpunkt von `make k8s-secrets` die aws-CLI
   keine Credentials liefern konnte (kein SSO-Login, kein gültiges Profil). Fix:
-  `aws sso login` → `make k8s-secrets` → `kubectl rollout restart deploy/api -n public -n dev`.
+  `aws sso login` → `make k8s-secrets` → `kubectl rollout restart deploy/api -n dev`.
 - **K8s: SSO-Token nach 1h abgelaufen, Auto-Translate antwortet mit HTTP 500**
   obwohl der Pod läuft. Die Secret-Werte sind statisch nach `make k8s-secrets`,
   laufen also nicht automatisch mit. Renewal-Workflow (drei Befehle):
   ```sh
   aws sso login
   make k8s-secrets
-  kubectl rollout restart deploy/api -n public -n dev
+  kubectl rollout restart deploy/api -n dev
   ```
+  Nur `dev` braucht das — `public` hat kein bedrock-secret (kein Admin-UI, keine Bedrock-Calls).
