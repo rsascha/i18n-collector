@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: dev
+
+resources:
+  - namespace.yaml
+  - ../../base
+  - ingress.yaml
+
+# `dev`-DB nutzt anderen Default-Passwort als `public`, damit man bei
+# kreuz-konfiguriertem port-forward den Unterschied früh bemerkt.
+patches:
+  - target:
+      kind: Secret
+      name: postgres-secret
+    patch: |-
+      - op: replace
+        path: /stringData/POSTGRES_PASSWORD
+        value: translations-dev
+
+labels:
+  - pairs:
+      app.kubernetes.io/environment: dev
