@@ -1,3 +1,6 @@
+packages:
+  - "projects/web-ui"
+
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
