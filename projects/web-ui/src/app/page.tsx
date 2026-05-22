@@ -18,7 +18,12 @@ const getSnapshot = () => i18n.resolvedLanguage;
 const getServerSnapshot = () => undefined;
 
 export default function Home() {
-  const active = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const active = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
+
   const t = (key: string, defaultValue: string) =>
     i18n.t(key, { defaultValue, lng: active });
 
@@ -26,10 +31,12 @@ export default function Home() {
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex flex-1 w-full max-w-3xl flex-col items-center py-32 px-16 bg-white dark:bg-black sm:items-start">
         <div className="mb-6 flex gap-2">
+          <p>active: {active}</p>
           {(["en", "de"] as const).map((lng) => (
             <button
               key={lng}
               type="button"
+              aria-pressed={active === lng}
               onClick={() => i18n.changeLanguage(lng)}
               className={`rounded border px-3 py-1 text-sm ${
                 active === lng
@@ -37,7 +44,7 @@ export default function Home() {
                   : "border-zinc-300 dark:border-zinc-700"
               }`}
             >
-              {lng.toUpperCase()} {active}
+              {lng.toUpperCase()}
             </button>
           ))}
         </div>
