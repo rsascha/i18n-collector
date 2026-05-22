@@ -7,8 +7,11 @@
     "dev": "make dev",
     "dev:api": "make dev-api",
     "dev:web": "pnpm --filter web-ui dev",
+    "dev:web-i18n": "pnpm --filter web-ui-i18n dev",
     "build:web": "pnpm --filter web-ui build",
+    "build:web-i18n": "pnpm --filter web-ui-i18n build",
     "lint:web": "pnpm --filter web-ui lint",
+    "lint:web-i18n": "pnpm --filter web-ui-i18n lint",
     "test:e2e": "pnpm --filter e2e-tests test"
   }
 }

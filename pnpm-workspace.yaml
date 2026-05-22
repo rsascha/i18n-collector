@@ -1,5 +1,6 @@
 packages:
   - "projects/web-ui"
+  - "projects/web-ui-i18n"
   - "projects/e2e-tests"
 
 ignoredBuiltDependencies:
