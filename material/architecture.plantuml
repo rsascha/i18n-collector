@@ -1,0 +1,66 @@
+@startuml architecture
+title i18n-collector — Architektur
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName "Inter"
+skinparam defaultFontSize 13
+skinparam ArrowColor #555
+skinparam ArrowFontColor #555
+skinparam ArrowFontSize 11
+
+skinparam rectangle {
+  BackgroundColor<<browser>>      #F4F4F5
+  BorderColor<<browser>>          #71717A
+  BackgroundColor<<consumer>>     #DBEAFE
+  BorderColor<<consumer>>         #2563EB
+  BackgroundColor<<admin>>        #FCE7F3
+  BorderColor<<admin>>            #DB2777
+  BackgroundColor<<api>>          #DCFCE7
+  BorderColor<<api>>              #16A34A
+  BackgroundColor<<db>>           #FEF3C7
+  BorderColor<<db>>               #D97706
+  BackgroundColor<<bedrock>>      #E0E7FF
+  BorderColor<<bedrock>>          #4F46E5
+}
+
+actor "Developer / User" as user
+
+rectangle "Browser" <<browser>> as browser {
+}
+
+rectangle "web-ui :3000\n(Next.js)\nreact-i18next" <<consumer>> as webui
+rectangle "web-ui-i18n :3001\n(Next.js)\nAdmin-UI" <<admin>> as webuiI18n
+
+rectangle "Spring Boot API :8080\n/i18n/{lng}/{ns}\n/i18n/translations[/...]" <<api>> as api
+
+database "PostgreSQL 17 :5432\nDocker Compose" <<db>> as db
+cloud "AWS Bedrock\neu-central-1\nClaude Haiku 4.5" <<bedrock>> as bedrock
+
+user --> browser
+
+browser --> webui       : http://localhost:3000\n(same-origin)
+browser --> webuiI18n   : http://localhost:3001\n(same-origin)
+
+webui --> api      : server-side proxy\nload/save i18n bundle\nmissing-key reports
+webuiI18n --> api  : server-side proxy\ntranslations CRUD\nauto-translate
+
+api --> db         : JPA + Flyway
+api --> bedrock    : Spring AI Converse\n(PENDING → AI)
+
+note right of api
+  Fan-out beim Missing-Key:
+  - source-lng (en) → MANUAL
+  - target-lngs    → PENDING
+  ON CONFLICT DO NOTHING
+end note
+
+note bottom of webui
+  Browser-Requests gehen
+  same-origin gegen den
+  jeweiligen Next-Server.
+  Spring-CORS ist deshalb
+  deaktiviert.
+end note
+
+@enduml
