@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "test:e2e": "playwright test"
+    "lint": "eslint"
   },
   "dependencies": {
     "i18next": "^26.2.0",
@@ -18,7 +17,6 @@
     "react-i18next": "^17.0.8"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

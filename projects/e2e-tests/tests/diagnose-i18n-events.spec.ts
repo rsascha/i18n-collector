@@ -1,7 +1,7 @@
 // Forensik-Vorlage für i18next-Probleme: hängt sich an die window.__i18n-Bridge
 // (nur dev), loggt language/resolvedLanguage/hasResourceBundle pro Event und gibt
-// die Sequenz am Ende auf stdout aus. Nicht Teil der CI-Suite, ad-hoc ausführen:
-//   pnpm exec playwright test e2e/diagnose-i18n-events.spec.ts
+// die Sequenz am Ende auf stdout aus. Läuft im normalen Test-Run mit; für
+// fokussierte Diagnose-Sessions: `pnpm --filter e2e-tests test:diagnose`.
 import { test } from "@playwright/test";
 
 test("diagnose: i18next-Event-Sequenz beim Klick auf DE", async ({ page }) => {

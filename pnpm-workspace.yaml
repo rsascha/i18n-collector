@@ -1,5 +1,6 @@
 packages:
   - "projects/web-ui"
+  - "projects/e2e-tests"
 
 ignoredBuiltDependencies:
   - sharp

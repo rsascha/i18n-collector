@@ -1,0 +1,14 @@
+{
+  "name": "e2e-tests",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:diagnose": "playwright test tests/diagnose-i18n-events.spec.ts --reporter=line"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

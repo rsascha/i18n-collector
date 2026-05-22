@@ -8,6 +8,7 @@
     "dev:api": "make dev-api",
     "dev:web": "pnpm --filter web-ui dev",
     "build:web": "pnpm --filter web-ui build",
-    "lint:web": "pnpm --filter web-ui lint"
+    "lint:web": "pnpm --filter web-ui lint",
+    "test:e2e": "pnpm --filter e2e-tests test"
   }
 }

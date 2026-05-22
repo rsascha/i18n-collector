@@ -1,4 +1,4 @@
-.PHONY: install dev dev-api dev-web build build-api build-web lint clean
+.PHONY: install dev dev-api dev-web build build-api build-web lint test-e2e clean
 
 install:
 	pnpm install
@@ -22,6 +22,10 @@ build-web:
 
 lint:
 	pnpm --filter web-ui lint
+
+# Requires `make dev` to be running in another terminal
+test-e2e:
+	pnpm --filter e2e-tests test
 
 clean:
 	cd projects/api && ./mvnw clean
