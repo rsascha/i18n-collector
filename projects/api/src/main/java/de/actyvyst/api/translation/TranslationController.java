@@ -3,7 +3,9 @@ package de.actyvyst.api.translation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -55,4 +57,20 @@ public class TranslationController {
     public TranslationDto translatePending(@PathVariable Long id) {
         return TranslationDto.from(translationService.translatePending(id));
     }
+
+    @PatchMapping("/translations/{id}")
+    public TranslationDto updateValue(
+            @PathVariable Long id,
+            @RequestBody UpdateValueRequest body
+    ) {
+        return TranslationDto.from(translationService.updateValue(id, body.value()));
+    }
+
+    @DeleteMapping("/translations/{id}")
+    public ResponseEntity<Void> deleteTranslation(@PathVariable Long id) {
+        translationService.deleteTranslation(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    public record UpdateValueRequest(String value) {}
 }

@@ -49,6 +49,27 @@ public class TranslationService {
     }
 
     @Transactional
+    public Translation updateValue(Long id, String value) {
+        if (value == null || value.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value must not be empty");
+        }
+        Translation t = translationRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Translation " + id + " not found"));
+
+        t.setValue(value);
+        t.setSource(TranslationSource.MANUAL);
+        return translationRepository.save(t);
+    }
+
+    @Transactional
+    public void deleteTranslation(Long id) {
+        if (!translationRepository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Translation " + id + " not found");
+        }
+        translationRepository.deleteById(id);
+    }
+
+    @Transactional
     public Translation translatePending(Long id) {
         Translation t = translationRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Translation " + id + " not found"));

@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import DeleteKeyButton from "./DeleteKeyButton";
+import EditableValueCell from "./EditableValueCell";
 import TranslateButton from "./TranslateButton";
 
 type TranslationSource = "MANUAL" | "AI" | "PENDING";
@@ -82,7 +84,12 @@ export default async function TranslationsPage() {
                     <td className="px-4 py-3 text-zinc-500">{row.id}</td>
                     <td className="px-4 py-3 font-mono">{row.messageKey}</td>
                     <td className="px-4 py-3 font-mono">{row.locale}</td>
-                    <td className="px-4 py-3">{row.value}</td>
+                    <td className="px-4 py-3">
+                      <EditableValueCell
+                        id={row.id}
+                        initialValue={row.value}
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${sourceBadge[row.source]}`}
@@ -94,10 +101,13 @@ export default async function TranslationsPage() {
                       {formatTimestamp(row.updatedAt)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <TranslateButton
-                        id={row.id}
-                        disabled={row.source !== "PENDING"}
-                      />
+                      <div className="flex items-start justify-end gap-2">
+                        <TranslateButton
+                          id={row.id}
+                          disabled={row.source !== "PENDING"}
+                        />
+                        <DeleteKeyButton id={row.id} />
+                      </div>
                     </td>
                   </tr>
                 ))}
