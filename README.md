@@ -4,7 +4,7 @@ Monorepo für einen kleinen i18n-Stack: eine Konsumenten-Web-UI, eine getrennte
 Admin-UI für die Übersetzungs-Tabelle und ein Spring-Boot-API, das die Daten
 hält und Bedrock für AI-Übersetzungen anruft.
 
-![Demo](material/i18n.gif?v=b8dc2a48)
+![Demo](material/i18n.gif?v=b8dc2a49)
 
 ## Architektur
 

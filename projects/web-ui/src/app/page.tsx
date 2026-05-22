@@ -57,7 +57,6 @@ export default function Home() {
           ))}
         </div>
         <p>{t("greeting", "Hello World")}</p>
-        <p>{t("just.a.new.key", "Just a new Sample")}</p>
       </main>
     </div>
   );
