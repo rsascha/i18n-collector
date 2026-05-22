@@ -12,12 +12,12 @@ Quelle: [`material/architecture.plantuml`](material/architecture.plantuml) — n
 
 ### Komponenten
 
-| Pfad                  | Zweck                                                                                                                     | Port |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---- |
-| `projects/web-ui`     | Demo-/Konsumenten-App. Rendert `t(key, defaultValue)`-Strings über `react-i18next` und triggert Missing-Key-Reports.      | 3000 |
-| `projects/web-ui-i18n`| Admin-UI auf der `translations`-Tabelle: Liste, Edit, Delete, Auto-Translate (Bedrock).                                   | 3001 |
-| `projects/api`        | Spring-Boot-API mit JPA + Flyway-Migrationen. Endpoints für i18next-Backend (`/{lng}/{ns}`) und CRUD (`/translations/*`). | 8080 |
-| `projects/e2e-tests`  | Playwright-Tests gegen `:3000` (Sprachumschalter + i18next-Diagnose). Setzt voraus, dass `make dev` läuft.                | —    |
+| Pfad                   | Zweck                                                                                                                     | Port |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---- |
+| `projects/web-ui`      | Demo-/Konsumenten-App. Rendert `t(key, defaultValue)`-Strings über `react-i18next` und triggert Missing-Key-Reports.      | 3000 |
+| `projects/web-ui-i18n` | Admin-UI auf der `translations`-Tabelle: Liste, Edit, Delete, Auto-Translate (Bedrock).                                   | 3001 |
+| `projects/api`         | Spring-Boot-API mit JPA + Flyway-Migrationen. Endpoints für i18next-Backend (`/{lng}/{ns}`) und CRUD (`/translations/*`). | 8080 |
+| `projects/e2e-tests`   | Playwright-Tests gegen `:3000` (Sprachumschalter + i18next-Diagnose). Setzt voraus, dass `make dev` läuft.                | —    |
 
 ### Datenfluss
 
@@ -39,37 +39,37 @@ sortierte Feature-Docs mit `Umsetzungsstand`-Sektion pro Iteration).
 ## Technologie-Stack
 
 ### Sprachen & Runtimes
-| Technologie    | Version          | Wofür                            |
-| -------------- | ---------------- | -------------------------------- |
-| Java           | 25               | Spring-Boot-API                  |
-| Node.js        | ≥ 20             | Next.js-Apps + Playwright        |
-| TypeScript     | 5.x              | Beide Web-UIs                    |
-| pnpm           | 10.33.2          | Workspace-Manager (Root)         |
+| Technologie | Version | Wofür                     |
+| ----------- | ------- | ------------------------- |
+| Java        | 25      | Spring-Boot-API           |
+| Node.js     | ≥ 20    | Next.js-Apps + Playwright |
+| TypeScript  | 5.x     | Beide Web-UIs             |
+| pnpm        | 10.33.2 | Workspace-Manager (Root)  |
 
 ### Backend (`projects/api`)
-| Technologie               | Version    |
-| ------------------------- | ---------- |
-| Spring Boot               | 4.0.6      |
-| Spring AI (Bedrock)       | 2.0.0-M6   |
-| springdoc-openapi         | 2.8.13     |
-| Flyway                    | (Spring-Boot-managed) |
-| Caffeine                  | (Spring-Boot-managed) |
-| PostgreSQL                | 17-alpine  |
+| Technologie         | Version               |
+| ------------------- | --------------------- |
+| Spring Boot         | 4.0.6                 |
+| Spring AI (Bedrock) | 2.0.0-M6              |
+| springdoc-openapi   | 2.8.13                |
+| Flyway              | (Spring-Boot-managed) |
+| Caffeine            | (Spring-Boot-managed) |
+| PostgreSQL          | 17-alpine             |
 
 ### Frontend
-| Technologie           | Version  | Eingesetzt in              |
-| --------------------- | -------- | -------------------------- |
-| Next.js               | 16.2.6   | web-ui, web-ui-i18n        |
-| React / React-DOM     | 19.2.4   | web-ui, web-ui-i18n        |
-| Tailwind CSS          | 4.x      | web-ui, web-ui-i18n        |
-| i18next               | 26.2.0   | web-ui                     |
-| i18next-http-backend  | 4.0.0    | web-ui                     |
-| react-i18next         | 17.0.8   | web-ui                     |
+| Technologie          | Version | Eingesetzt in       |
+| -------------------- | ------- | ------------------- |
+| Next.js              | 16.2.6  | web-ui, web-ui-i18n |
+| React / React-DOM    | 19.2.4  | web-ui, web-ui-i18n |
+| Tailwind CSS         | 4.x     | web-ui, web-ui-i18n |
+| i18next              | 26.2.0  | web-ui              |
+| i18next-http-backend | 4.0.0   | web-ui              |
+| react-i18next        | 17.0.8  | web-ui              |
 
 ### Test
-| Technologie       | Version | Wofür                              |
-| ----------------- | ------- | ---------------------------------- |
-| @playwright/test  | 1.60.x  | E2E-Tests (`projects/e2e-tests`)   |
+| Technologie      | Version | Wofür                            |
+| ---------------- | ------- | -------------------------------- |
+| @playwright/test | 1.60.x  | E2E-Tests (`projects/e2e-tests`) |
 
 ### Externe Services
 - **AWS Bedrock** — `eu.anthropic.claude-haiku-4-5-20251001-v1:0` (EU-Inference-Profile, Region `eu-central-1`). Setup-Details siehe `projects/api/.env.example`.
@@ -100,6 +100,9 @@ cp projects/web-ui-i18n/.env.example projects/web-ui-i18n/.env # optional
 cd projects/api && docker compose up -d
 ```
 
+> **macOS** — falls kein Docker-Daemon läuft (Colima statt Docker Desktop):
+> `colima start --kubernetes` vor dem `docker compose up -d` ausführen.
+
 Flyway zieht die V1–V4-Migrationen beim ersten API-Start automatisch nach
 (`translations`-Tabelle + Seed-Daten).
 
@@ -111,12 +114,12 @@ make dev
 
 Startet API, web-ui und web-ui-i18n parallel (`make -j3`):
 
-| Prozess       | URL                       |
-| ------------- | ------------------------- |
-| Spring API    | http://localhost:8080     |
-| Demo-UI       | http://localhost:3000     |
-| Admin-UI      | http://localhost:3001     |
-| Swagger-UI    | http://localhost:8080/swagger-ui.html |
+| Prozess    | URL                                     |
+| ---------- | --------------------------------------- |
+| Spring API | `http://localhost:8080`                 |
+| Demo-UI    | `http://localhost:3000`                 |
+| Admin-UI   | `http://localhost:3001`                 |
+| Swagger-UI | `http://localhost:8080/swagger-ui.html` |
 
 Einzelne Prozesse:
 
