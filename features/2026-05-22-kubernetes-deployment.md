@@ -569,6 +569,32 @@ Reviewing nach #10: die ursprüngliche Namespace-Wahl `public`/`dev` aus der all
 
 **Cluster-Switch**: alte Namespaces `public`/`dev` werden gelöscht, neue `prod`/`pre-prod` per `make k8s-prod && make k8s-pre-prod` neu erstellt. PVCs werden mit gelöscht — alle Übersetzungs-Daten gehen verloren. Im Dev-Setup ist das OK; in Production müsste ein DB-Dump als Migration zwischen den Namespaces laufen.
 
+### 12. Promote-Button auch im `make dev`-Workflow klickbar machen
+
+Beobachtung nach #11: wer `http://localhost:3001/` lokal über `make dev` öffnet, sieht den Promote-Button — aber Klick → `HTTP 503: "PUBLIC_API_BASE_URL ist nicht konfiguriert"`. Grund: lokal gibt es keine zweite API auf der „prod-Seite", also keinen Wert für `PUBLIC_API_BASE_URL`.
+
+Optionen:
+1. Button im lokalen Workflow disablen / wegrendern.
+2. Spring-API lokal so konfigurieren, dass `/promote` gegen sich selbst läuft.
+
+**Entscheidung: Variante 2** — der Self-Loop ist semantisch ein UPSERT mit identischen Werten (`message_key`+`locale` gleich, `value`+`source` gleich), also ein No-Op außer dass `updated_at` wandert. Damit ist der Button identisch funktional zum K8s-Verhalten — Counter, Confirm-Dialog, Banner — nur dass die „andere Seite" zufällig dieselbe DB ist.
+
+**Fix**: in `projects/api/Makefile` ein `export PUBLIC_API_BASE_URL := http://localhost:8080` ergänzt. Spring-Prozess liest die env-var beim Start, das `${PUBLIC_API_BASE_URL:}` in `application.yml` greift auf den Wert zu, und `TranslationService.promote()` POSTet an `localhost:8080/i18n/translations/import` — also an sich selbst. Loopback ist sub-Millisekunden-fast.
+
+**Was bewusst NICHT geändert wurde**:
+- `application.yml` behält den Default leer (`${PUBLIC_API_BASE_URL:}`). In K8s `prod` ist die Variable bewusst _nicht_ gesetzt → `/promote` antwortet weiter mit `HTTP 503`. Diese Loud-Failure-Safety bleibt: wenn jemand in prod versehentlich `curl …/promote` macht, bekommt er einen klaren Fehler, keinen stillen Self-Loop-No-Op.
+- `web-ui-i18n` rendert den Button weiter mit `Promote pre-prod → prod (N)`. Im lokalen Kontext ist „prod" konzeptionell dasselbe System; der Text ist im K8s-Modell korrekt, im Dev-Modell harmlos.
+
+Diff-Bild der Lokalen Layer-Konfig:
+
+| Workflow         | `PUBLIC_API_BASE_URL`                         | Promote-Verhalten          |
+| ---------------- | --------------------------------------------- | -------------------------- |
+| `make dev`       | `http://localhost:8080` (aus api-Makefile)   | Self-UPSERT (No-Op)        |
+| K8s `pre-prod`   | `http://api.prod.svc.cluster.local:8080`     | Cross-NS-Promote zu `prod` |
+| K8s `prod`       | _(leer)_                                      | HTTP 503                   |
+
+**Aktivierung**: einmaliger Restart von `make dev-api` (Spring liest env-vars nur beim Start). Danach klappt der Button auf `http://localhost:3001/` wie erwartet.
+
 ### Geänderte Files in diesem Nachtrag
 
 - `k8s/base/postgres.yaml` — `storageClassName: standard` entfernt.

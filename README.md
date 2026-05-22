@@ -4,6 +4,8 @@ Monorepo für einen kleinen i18n-Stack: eine Konsumenten-Web-UI, eine getrennte
 Admin-UI für die Übersetzungs-Tabelle und ein Spring-Boot-API, das die Daten
 hält und Bedrock für AI-Übersetzungen anruft.
 
+![Demo](material/i18n.gif?v=b8dc2a48)
+
 ## Architektur
 
 ![Architektur-Diagramm](material/architecture.png?v=fd8291de)
@@ -243,6 +245,8 @@ make k8s-clean
 4. Inline-Banner unter dem Button zeigt Erfolgs-Counter oder Fehler.
 
 Idempotent: Mehrfaches Klicken ist sicher, ein erneuter Promote überschreibt mit denselben Werten. Voraussetzung: `PUBLIC_API_BASE_URL`-Env-Var auf dem pre-prod/api-Deployment (im `k8s/overlays/pre-prod/kustomization.yaml` als Patch verankert; Variablen-Name ist historisch — er bedeutet „Promote-Ziel", nicht „public-Namespace").
+
+Im `make dev`-Workflow läuft der Button gegen die eigene API (`PUBLIC_API_BASE_URL=http://localhost:8080`, gesetzt im `projects/api/Makefile`). Self-UPSERT mit identischen Werten ist ein No-Op außer dass `updated_at` wandert — der Button ist also lokal genau so klickbar wie in K8s.
 
 ### URLs
 

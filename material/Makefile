@@ -9,6 +9,10 @@
 
 PLANTUMLS := $(wildcard *.plantuml)
 PNGS      := $(PLANTUMLS:.plantuml=.png)
+# Weitere Bild-Assets, die NICHT aus PlantUML generiert werden (handgemachte
+# Screenshots, Demo-GIFs, …) — bekommen denselben ?v=<hash>-Stempel.
+EXTRA_MEDIA := $(wildcard *.gif) $(wildcard *.jpg) $(wildcard *.jpeg)
+MEDIA       := $(PNGS) $(EXTRA_MEDIA)
 
 build-pngs: $(PNGS) update-readme
 
@@ -16,9 +20,10 @@ build-pngs: $(PNGS) update-readme
 	plantuml -tpng $<
 
 update-readme:
-	@for png in $(PNGS); do \
-	  hash=$$(shasum -a 256 $$png | cut -c1-8); \
-	  sed -i.bak -E "s|(material/$$png)(\?v=[a-f0-9]+)?|\1?v=$$hash|g" ../README.md; \
+	@for media in $(MEDIA); do \
+	  [ -f $$media ] || continue; \
+	  hash=$$(shasum -a 256 $$media | cut -c1-8); \
+	  sed -i.bak -E "s|(material/$$media)(\?v=[a-f0-9]+)?|\1?v=$$hash|g" ../README.md; \
 	done
 	@rm -f ../README.md.bak
 
