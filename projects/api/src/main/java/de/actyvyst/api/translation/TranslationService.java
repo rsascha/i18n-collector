@@ -14,25 +14,39 @@ import java.util.Map;
 @Service
 public class TranslationService {
 
-    private static final String SOURCE_LOCALE = "en";
-
     private final TranslationRepository translationRepository;
+    private final I18nProperties i18nProperties;
     private final ChatClient chatClient;
 
-    public TranslationService(TranslationRepository translationRepository, ChatClient.Builder chatClientBuilder) {
+    public TranslationService(
+            TranslationRepository translationRepository,
+            I18nProperties i18nProperties,
+            ChatClient.Builder chatClientBuilder
+    ) {
         this.translationRepository = translationRepository;
+        this.i18nProperties = i18nProperties;
         this.chatClient = chatClientBuilder.build();
     }
 
+    /**
+     * Erzeugt für jeden gemeldeten Key einen Eintrag pro {@code supportedLngs}:
+     * {@code sourceLng} → {@code MANUAL} (mit defaultValue als kanonischem Source-Text),
+     * alle übrigen Locales → {@code PENDING}. Idempotent via ON CONFLICT DO NOTHING.
+     * Die Locale aus der URL spielt für das Fan-out keine Rolle — das Verhalten ist
+     * symmetrisch, egal welche Sprache den missing-key-Report ausgelöst hat.
+     */
     @Transactional
-    public void recordMissingKeys(String locale, Map<String, String> keysWithDefaults) {
-        TranslationSource source = SOURCE_LOCALE.equals(locale)
-                ? TranslationSource.MANUAL
-                : TranslationSource.PENDING;
+    public void recordMissingKeys(String reportLocale, Map<String, String> keysWithDefaults) {
+        String sourceLng = i18nProperties.sourceLng();
 
-        keysWithDefaults.forEach((messageKey, defaultValue) ->
-                translationRepository.insertIfAbsent(messageKey, locale, defaultValue, source.name())
-        );
+        keysWithDefaults.forEach((messageKey, defaultValue) -> {
+            for (String lng : i18nProperties.supportedLngs()) {
+                TranslationSource source = lng.equals(sourceLng)
+                        ? TranslationSource.MANUAL
+                        : TranslationSource.PENDING;
+                translationRepository.insertIfAbsent(messageKey, lng, defaultValue, source.name());
+            }
+        });
     }
 
     @Transactional
@@ -49,7 +63,8 @@ public class TranslationService {
 
         String sourceText = t.getValue();
         String translated = translateViaClaude(sourceText, t.getLocale());
-        log.info("Translated id={} ({} → {}): '{}' → '{}'", id, SOURCE_LOCALE, t.getLocale(), sourceText, translated);
+        log.info("Translated id={} ({} → {}): '{}' → '{}'",
+                id, i18nProperties.sourceLng(), t.getLocale(), sourceText, translated);
 
         t.setValue(translated);
         t.setSource(TranslationSource.AI);

@@ -10,6 +10,8 @@ if (!i18n.isInitialized) {
     .use(initReactI18next)
     .init({
       fallbackLng: "en",
+      // Synchron zu projects/api/src/main/resources/application.yml#app.i18n
+      // halten — bei Erweiterung beide Stellen anpassen.
       supportedLngs: ["en", "de"],
       ns: ["common"],
       defaultNS: "common",

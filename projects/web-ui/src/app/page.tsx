@@ -49,6 +49,8 @@ export default function Home() {
         </div>
         <p>{t("greeting", "Hello World")}</p>
         <p>{t("unknown.key", "Unknown Key Test")}</p>
+        <p>{t("anotherTest", "This is just another test!")}</p>
+        <p>{t("andAnotherTest", "This is just another test!")}</p>
       </main>
     </div>
   );

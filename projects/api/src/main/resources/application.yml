@@ -29,6 +29,15 @@ spring:
           options:
             model: ${BEDROCK_MODEL_ID:eu.anthropic.claude-haiku-4-5-20251001-v1:0}
 
+app:
+  i18n:
+    # MUSS synchron zu projects/web-ui/src/i18n/i18n.ts (supportedLngs)
+    # gehalten werden — beim Erweitern der Sprachen beide Stellen anpassen.
+    source-lng: en
+    supported-lngs:
+      - en
+      - de
+
 logging:
   level:
     de.actyvyst.api: DEBUG
