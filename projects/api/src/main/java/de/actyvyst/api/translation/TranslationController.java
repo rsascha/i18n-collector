@@ -43,4 +43,16 @@ public class TranslationController {
         }
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/translations")
+    public List<TranslationDto> listAllTranslations() {
+        return translationRepository.findAll().stream()
+                .map(TranslationDto::from)
+                .toList();
+    }
+
+    @PostMapping("/translations/{id}/translate")
+    public TranslationDto translatePending(@PathVariable Long id) {
+        return TranslationDto.from(translationService.translatePending(id));
+    }
 }
