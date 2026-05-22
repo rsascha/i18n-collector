@@ -1,8 +1,28 @@
 @startuml architecture
 title i18n-collector — Architektur
 
+!option handwritten true
+
+skinparam NoteBackgroundColor   #266196
+skinparam NoteBorderColor       #4196f6
+skinparam NoteFontColor         white
+skinparam NoteFontName          Courier
+skinparam Shadowing             false
+skinparam TitleFontColor        #266196
+
+skinparam sequence {
+    ActorBackgroundColor        #266196
+    ActorBorderColor            #266196
+    ActorFontColor              #266196
+    ArrowColor                  #266196
+    ArrowFontColor              black
+    LifeLineBorderColor         #266196
+    ParticipantBackgroundColor  #266196
+    ParticipantBorderColor      #4196f6
+    ParticipantFontColor        white
+}
+
 skinparam componentStyle rectangle
-skinparam shadowing false
 skinparam defaultFontName "Inter"
 skinparam defaultFontSize 13
 skinparam ArrowColor #555

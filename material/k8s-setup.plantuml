@@ -1,0 +1,128 @@
+@startuml k8s-setup
+title i18n-collector — Kubernetes Setup (Colima/k3s)
+
+!option handwritten true
+
+skinparam NoteBackgroundColor   #266196
+skinparam NoteBorderColor       #4196f6
+skinparam NoteFontColor         white
+skinparam NoteFontName          Courier
+skinparam Shadowing             false
+skinparam TitleFontColor        #266196
+
+skinparam sequence {
+    ActorBackgroundColor        #266196
+    ActorBorderColor            #266196
+    ActorFontColor              #266196
+    ArrowColor                  #266196
+    ArrowFontColor              black
+    LifeLineBorderColor         #266196
+    ParticipantBackgroundColor  #266196
+    ParticipantBorderColor      #4196f6
+    ParticipantFontColor        white
+}
+
+skinparam componentStyle rectangle
+skinparam defaultFontName "Inter"
+skinparam defaultFontSize 12
+skinparam ArrowColor #555
+skinparam ArrowFontColor #555
+skinparam ArrowFontSize 10
+
+skinparam rectangle {
+  BackgroundColor<<browser>>      #F4F4F5
+  BorderColor<<browser>>          #71717A
+  BackgroundColor<<host>>         #FAFAF9
+  BorderColor<<host>>             #A8A29E
+  BackgroundColor<<colima>>       #FEF3C7
+  BorderColor<<colima>>           #D97706
+  BackgroundColor<<kubesys>>      #E0E7FF
+  BorderColor<<kubesys>>          #4F46E5
+  BackgroundColor<<public>>       #DBEAFE
+  BorderColor<<public>>           #2563EB
+  BackgroundColor<<dev>>          #FCE7F3
+  BorderColor<<dev>>              #DB2777
+  BackgroundColor<<pod>>          #FFFFFF
+  BorderColor<<pod>>              #6B7280
+  BackgroundColor<<bedrock>>      #DCFCE7
+  BorderColor<<bedrock>>          #16A34A
+}
+
+actor "Developer" as user
+
+rectangle "Browser" <<browser>> as browser
+
+rectangle "macOS Host" <<host>> as host {
+  rectangle "127.0.0.1 :80\n(klipper-lb → VM)" <<host>> as hostPort
+}
+
+rectangle "Colima VM (k3s)" <<colima>> as colima {
+
+  rectangle "Namespace: kube-system" <<kubesys>> as ks {
+    rectangle "Traefik Ingress\n(LoadBalancer :80)" <<pod>> as traefik
+    note bottom of traefik
+      Routet nach Host-Header:
+      web-ui.public.localtest.me  → public/web-ui
+      web-ui.dev.localtest.me     → dev/web-ui
+      admin.dev.localtest.me      → dev/web-ui-i18n
+      api.dev.localtest.me/swagger-ui
+                                  → dev/api
+    end note
+  }
+
+  rectangle "Namespace: public" <<public>> as nsPub {
+    rectangle "Ingress\n(nur web-ui exponiert)" <<pod>> as ingPub
+    rectangle "web-ui :3000" <<pod>> as webPub
+    rectangle "web-ui-i18n :3001\n(cluster-intern)" <<pod>> as adminPub
+    rectangle "api :8080" <<pod>> as apiPub
+    database "postgres :5432\n(PVC 1Gi)" <<pod>> as pgPub
+  }
+
+  rectangle "Namespace: dev" <<dev>> as nsDev {
+    rectangle "Ingress\n(web-ui + admin + api/swagger)" <<pod>> as ingDev
+    rectangle "web-ui :3000" <<pod>> as webDev
+    rectangle "web-ui-i18n :3001" <<pod>> as adminDev
+    rectangle "api :8080" <<pod>> as apiDev
+    database "postgres :5432\n(PVC 1Gi)" <<pod>> as pgDev
+  }
+}
+
+cloud "AWS Bedrock\neu-central-1\nClaude Haiku 4.5" <<bedrock>> as bedrock
+
+user --> browser
+browser --> hostPort : http://web-ui.public.localtest.me\nhttp://*.dev.localtest.me
+hostPort --> traefik : VM-Port-Forward
+
+traefik --> ingPub  : Host-Match public.*
+traefik --> ingDev  : Host-Match *.dev.*
+
+ingPub --> webPub
+ingDev --> webDev
+ingDev --> adminDev
+ingDev --> apiDev   : /swagger-ui\n/v3/api-docs
+
+webPub      --> apiPub  : SSR/Proxy\nAPI_BASE_URL=\nhttp://api:8080
+adminPub    --> apiPub  : (cluster-intern, kein Ingress)
+webDev      --> apiDev
+adminDev    --> apiDev
+
+apiPub --> pgPub : JDBC
+apiDev --> pgDev : JDBC
+
+apiPub --> bedrock : Spring AI\nConverse
+apiDev --> bedrock
+
+note right of nsPub
+  Konsumenten-Sicht.
+  admin und swagger laufen,
+  sind aber nicht im Ingress.
+end note
+
+note right of nsDev
+  Admin-Sicht.
+  Eigener kompletter Stack.
+  Eigene DB — keine Daten-
+  Vermischung mit public.
+end note
+
+@enduml

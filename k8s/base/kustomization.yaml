@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base-Manifests: enthalten den vollständigen Stack ohne Namespace.
+# Overlays unter k8s/overlays/{public,dev} setzen Namespace und Ingress.
+#
+# bedrock-secret wird NICHT hier verwaltet — siehe Makefile-Target k8s-secrets:
+# `kubectl create secret generic bedrock-secret --from-env-file=projects/api/.env`
+# in jeden Namespace einzeln. Das Secret wird in api.yaml als `optional: true`
+# referenziert, damit Deployments auch ohne Bedrock starten.
+
+resources:
+  - postgres-secret.yaml
+  - postgres.yaml
+  - api.yaml
+  - web-ui.yaml
+  - web-ui-i18n.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: i18n-collector

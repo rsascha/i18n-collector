@@ -1,7 +1,8 @@
-import { headers } from "next/headers";
 import DeleteKeyButton from "./DeleteKeyButton";
 import EditableValueCell from "./EditableValueCell";
 import TranslateButton from "./TranslateButton";
+
+const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:8080";
 
 type TranslationSource = "MANUAL" | "AI" | "PENDING";
 
@@ -16,10 +17,10 @@ type TranslationDto = {
 };
 
 async function fetchTranslations(): Promise<TranslationDto[]> {
-  const h = await headers();
-  const host = h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  const res = await fetch(`${proto}://${host}/api/i18n/translations`, {
+  // Server-Component fetcht direkt gegen die API (cluster-intern in K8s,
+  // localhost:8080 in `make dev`). Kein Umweg über den eigenen Proxy —
+  // `admin.dev.localtest.me` wäre vom Pod aus nicht erreichbar.
+  const res = await fetch(`${API_BASE_URL}/i18n/translations`, {
     cache: "no-store",
   });
   if (!res.ok) {

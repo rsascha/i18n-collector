@@ -80,7 +80,8 @@ sortierte Feature-Docs mit `Umsetzungsstand`-Sektion pro Iteration).
 - Node.js 20+
 - pnpm 10+ (`brew install pnpm` oder `corepack enable`)
 - Docker (für PostgreSQL via `docker compose`)
-- AWS-Credentials mit Bedrock-Zugriff (für Auto-Translate; ohne läuft alles andere)
+- aws-CLI inklusive aktiver Session (`brew install awscli`, dann `aws sso login` o. ä.) — sowohl `make dev-api` als auch `make k8s-secrets` ziehen die AWS-Credentials live von dort. Ohne läuft alles _außer_ Auto-Translate.
+- Nur für den K8s-Workflow: `kubectl` (`brew install kubectl`) und `helm` (`brew install helm`)
 
 ## Installation
 
@@ -89,9 +90,9 @@ sortierte Feature-Docs mit `Umsetzungsstand`-Sektion pro Iteration).
 make install
 # entspricht: pnpm install
 
-# 2. AWS / Postgres-Variablen anlegen
+# 2. .env aus Template anlegen (für Region + Bedrock-Modell-ID; AWS-Creds
+#    selbst werden NICHT hier eingetragen — die kommen live vom aws-CLI).
 cp projects/api/.env.example projects/api/.env
-# Werte anpassen — mindestens AWS-Credentials, falls Bedrock genutzt werden soll
 
 cp projects/web-ui/.env.example projects/web-ui/.env           # optional
 cp projects/web-ui-i18n/.env.example projects/web-ui-i18n/.env # optional
@@ -138,6 +139,107 @@ make test-e2e         # Playwright (erwartet, dass `make dev` parallel läuft)
 make clean            # mvn clean + .next/tsbuildinfo-Cleanup
 ```
 
+## Kubernetes (lokal in Colima)
+
+Alternativer Deployment-Pfad neben `make dev`: zwei Namespaces (`public` und `dev`) mit jeweils komplettem Stack. Siehe `features/2026-05-22-kubernetes-deployment.md`.
+
+![K8s-Setup-Diagramm](material/k8s-setup.png)
+
+Quelle: [`material/k8s-setup.plantuml`](material/k8s-setup.plantuml) — neu rendern via `plantuml -tpng material/k8s-setup.plantuml`.
+
+### Einmaliges Setup
+
+```sh
+# Colima im K8s-Mode mit genug Memory. Default 2 GB reicht nicht für zwei
+# Namespaces × kompletter Stack (Pods scheitern sonst mit
+# FailedScheduling: Insufficient memory).
+colima start --kubernetes --memory 4
+
+# Ingress-Controller (Traefik) nachinstallieren — Colimas k3s kommt
+# ohne. Mappt LoadBalancer-IP via klipper-lb auf den Host.
+# Voraussetzung: helm (`brew install helm`).
+make ingress
+```
+
+#### DNS für `*.localtest.me` (falls vom Router gefiltert)
+
+`localtest.me` ist ein öffentlicher DNS-Service, der alle Subdomains auf `127.0.0.1` auflöst. Viele Heim-Router (FritzBox, einige TP-Link, einige UniFi-Setups) haben jedoch einen **DNS-Rebind-Schutz**, der DNS-Antworten mit privaten/Loopback-Adressen herausfiltert. Symptom:
+
+```sh
+$ dig localtest.me
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: ...
+;; ANSWER: 0           ← leer, obwohl die externe Antwort 127.0.0.1 wäre
+;; SERVER: 192.168.x.1#53   ← der Router filtert
+```
+
+Zwei Lösungswege:
+
+**Option A — `/etc/hosts` (empfohlen, portabel)**
+
+Funktioniert in jedem Netz (auch Café/Hotspot/VPN), unabhängig vom Router:
+
+```sh
+sudo tee -a /etc/hosts <<'EOF'
+
+# i18n-collector — Colima/K8s-Ingress
+127.0.0.1 web-ui.public.localtest.me
+127.0.0.1 web-ui.dev.localtest.me
+127.0.0.1 admin.dev.localtest.me
+127.0.0.1 api.dev.localtest.me
+EOF
+```
+
+`/etc/hosts` wird vor jeder DNS-Anfrage konsultiert — der Router sieht die Anfragen gar nicht.
+
+**Option B — DNS-Rebind-Schutz am Router für `localtest.me` ausnehmen**
+
+Allgemeines Prinzip: Im Router-Admin-Interface eine Allowlist-/Whitelist-Funktion suchen, die Hostnamen vom Rebind-Schutz ausnimmt, und `localtest.me` eintragen.
+
+Pro Router-Hersteller die übliche Stelle:
+
+| Router       | Pfad im Web-Interface                                                                                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **FritzBox** | Heimnetz → Netzwerk → Netzwerkeinstellungen → „Hostnamen vom DNS-Rebind-Schutz ausnehmen" (oder unter Internet → Filter → Listen → DNS-Rebind-Schutz, je nach FRITZ!OS-Version) |
+| **OpenWrt**  | `/etc/config/dhcp` → `option rebind_localhost '1'` setzen oder Domain via `list rebind_domain 'localtest.me'`                                                                   |
+| **UniFi**    | Settings → Networks → Default → Advanced → Domain Name (lokale Domain ergänzen)                                                                                                 |
+| **pi-hole**  | Settings → DNS → „Never forward non-FQDNs" deaktivieren oder `localtest.me` als regex-Allowlist                                                                                 |
+
+Nach der Änderung Router-DNS testen:
+
+```sh
+dig localtest.me +short    # erwartet: 127.0.0.1
+```
+
+Vorteil B vs. A: gilt für alle Geräte im Heimnetz, ein-für-allemal. Nachteil: Router-spezifisch, klappt nur zu Hause — unterwegs brauchst du wieder `/etc/hosts`.
+
+### Deployment-Loop
+
+```sh
+# 1. Container-Images in den Colima-Daemon laden
+make images
+
+# 2. Bedrock-Credentials in beide Namespaces als Secret.
+#    Voraussetzung: aws-CLI ist eingeloggt (sonst `aws sso login` vorab).
+#    Re-Run nach Token-Ablauf reicht — Pods müssen aber neu gestartet werden
+#    (siehe Troubleshooting unten).
+make k8s-secrets
+
+# 3. Stack pro Namespace deployen
+make k8s-public
+make k8s-dev
+
+# 4. Reset (löscht beide Namespaces inkl. PVCs; Traefik bleibt)
+make k8s-clean
+```
+
+URLs (Traefik-Ingress, `*.localtest.me` → 127.0.0.1):
+
+| Namespace | URL                                                                   |
+| --------- | --------------------------------------------------------------------- |
+| `public`  | `http://web-ui.public.localtest.me`                                   |
+| `dev`     | `http://web-ui.dev.localtest.me`, `http://admin.dev.localtest.me`     |
+| `dev`     | `http://api.dev.localtest.me/swagger-ui` (nur Doku-Pfade exponiert)   |
+
 ## Troubleshooting
 
 - **`./mvnw spring-boot:run` findet kein Java 25** — sicherstellen, dass
@@ -150,3 +252,15 @@ make clean            # mvn clean + .next/tsbuildinfo-Cleanup
   Profile lassen sich vom Java-SDK nicht direkt lesen. Das API-Makefile löst
   das mit `aws configure export-credentials --format env`. Lokal sicherstellen,
   dass `aws sso login` (oder vergleichbares) frisch ist.
+- **K8s: `kubectl get secret bedrock-secret -n dev` zeigt `DATA 0`** — das Secret
+  wurde leer angelegt, weil zum Zeitpunkt von `make k8s-secrets` die aws-CLI
+  keine Credentials liefern konnte (kein SSO-Login, kein gültiges Profil). Fix:
+  `aws sso login` → `make k8s-secrets` → `kubectl rollout restart deploy/api -n public -n dev`.
+- **K8s: SSO-Token nach 1h abgelaufen, Auto-Translate antwortet mit HTTP 500**
+  obwohl der Pod läuft. Die Secret-Werte sind statisch nach `make k8s-secrets`,
+  laufen also nicht automatisch mit. Renewal-Workflow (drei Befehle):
+  ```sh
+  aws sso login
+  make k8s-secrets
+  kubectl rollout restart deploy/api -n public -n dev
+  ```
